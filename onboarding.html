@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Restate Runtime — Onboarding</title>
+<style>
+  :root {
+    --fg: #1a1a1a;
+    --muted: #5a5a5a;
+    --bg: #fafaf7;
+    --card: #ffffff;
+    --accent: #e94f3b;
+    --border: #e6e3dc;
+    --code-bg: #f3f1ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    margin: 0;
+    line-height: 1.55;
+  }
+  .container {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+  header {
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+  }
+  header h1 {
+    margin: 0 0 0.3rem;
+    font-size: 2rem;
+  }
+  header p { margin: 0; color: var(--muted); }
+  h2 {
+    margin-top: 2.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.4rem;
+  }
+  h3 { margin-top: 1.6rem; font-size: 1.1rem; }
+  code {
+    background: var(--code-bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.9em;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 0.9rem 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.88rem;
+  }
+  pre code { background: none; padding: 0; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.9rem;
+    margin-top: 1rem;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+  }
+  .card h4 {
+    margin: 0 0 0.3rem;
+    font-size: 0.95rem;
+    color: var(--accent);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  .card p { margin: 0; font-size: 0.9rem; color: var(--muted); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.8rem;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--code-bg); }
+  .cite {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.8em;
+    color: var(--muted);
+  }
+  .callout {
+    background: #fff7f5;
+    border-left: 4px solid var(--accent);
+    padding: 0.7rem 1rem;
+    margin: 1rem 0;
+    border-radius: 0 6px 6px 0;
+  }
+  ul, ol { padding-left: 1.3rem; }
+  li { margin-bottom: 0.25rem; }
+  nav.toc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.9rem 1.2rem;
+    margin-bottom: 2rem;
+    columns: 2;
+    column-gap: 2rem;
+  }
+  nav.toc a { color: var(--fg); text-decoration: none; }
+  nav.toc a:hover { color: var(--accent); }
+  a { color: var(--accent); }
+  .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.45rem;
+    background: var(--accent);
+    color: white;
+    border-radius: 10px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Restate Runtime — Onboarding</h1>
+  <p>Welcome to the runtime team. This page is a curated, source-cited tour of the codebase to get you productive in your first week.</p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#what">What is Restate?</a></li>
+    <li><a href="#layout">Repository layout</a></li>
+    <li><a href="#crates">Key runtime crates</a></li>
+    <li><a href="#build">Build &amp; test workflow</a></li>
+    <li><a href="#guidelines">Coding guidelines</a></li>
+    <li><a href="#components">Component design pattern</a></li>
+    <li><a href="#validation">Pre-commit validation</a></li>
+    <li><a href="#hotpaths">Latency-critical paths</a></li>
+    <li><a href="#tools">Useful tools</a></li>
+    <li><a href="#firstweek">Suggested first week</a></li>
+    <li><a href="#links">External links</a></li>
+  </ul>
+</nav>
+
+<section id="what">
+  <h2>What is Restate?</h2>
+  <p>Restate is a distributed runtime that gives applications durable execution, durable promises/timers, exactly-once communication, and consistent K/V state per entity. The user-facing pitch and primitives live in <span class="cite">README.md:7–104</span>.</p>
+  <p>Workspace version at time of writing: <code>1.7.0-dev</code>, Rust edition <code>2024</code>, MSRV <code>1.95.0</code> <span class="cite">Cargo.toml:35–38</span>. License is <code>BUSL-1.1</code> <span class="cite">Cargo.toml:39</span>.</p>
+</section>
+
+<section id="layout">
+  <h2>Repository layout</h2>
+  <table>
+    <thead><tr><th>Path</th><th>Purpose</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td><code>crates/</code></td><td>All <code>restate-*</code> library crates (the runtime itself).</td><td class="cite">Cargo.toml:4</td></tr>
+      <tr><td><code>server/</code></td><td><code>restate-server</code> binary entrypoint.</td><td class="cite">Cargo.toml:9</td></tr>
+      <tr><td><code>cli/</code></td><td><code>restate</code> CLI binary.</td><td class="cite">Cargo.toml:3</td></tr>
+      <tr><td><code>tools/</code></td><td>Auxiliary binaries: <code>restatectl</code>, <code>restate-doctor</code>, <code>bifrost-benchpress</code>, <code>logserver-bench</code>, <code>pp-bench</code>, <code>mock-service-endpoint</code>, <code>xtask</code>, Wireshark dissector.</td><td class="cite">Cargo.toml:12–19</td></tr>
+      <tr><td><code>benchmarks/</code></td><td>Workspace benchmark crate.</td><td class="cite">Cargo.toml:11</td></tr>
+      <tr><td><code>docs/dev/</code></td><td>Developer docs — read these first.</td><td class="cite">docs/dev/README.md:1–19</td></tr>
+      <tr><td><code>release-notes/</code></td><td>Per-release notes; add entries to <code>unreleased/</code> when changing behavior.</td><td class="cite">release-notes/, CLAUDE.md (release-notes rule)</td></tr>
+      <tr><td><code>service-protocol/</code></td><td>SDK ↔ runtime protocol definitions.</td><td class="cite">repo root listing</td></tr>
+      <tr><td><code>justfile</code></td><td>Task runner: <code>build</code>, <code>test</code>, <code>lint</code>, <code>verify</code>, <code>docker</code>, <code>flamegraph</code>, etc.</td><td class="cite">justfile (recipes block)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="crates">
+  <h2>Key runtime crates</h2>
+  <p>The runtime is decomposed into many crates. The ones you will touch most as a new runtime engineer:</p>
+  <div class="grid">
+    <div class="card">
+      <h4>restate-core</h4>
+      <p>Task center, metadata, network, partitions infra. Entry: <code>crates/core/src/lib.rs:19–27</code>.</p>
+    </div>
+    <div class="card">
+      <h4>restate-bifrost</h4>
+      <p>Distributed log abstraction (<code>Bifrost</code>, <code>Appender</code>, <code>LogReadStream</code>, loglet providers). Re-exports at <code>crates/bifrost/src/lib.rs:28–37</code>.</p>
+    </div>
+    <div class="card">
+      <h4>restate-worker</h4>
+      <p>Hosts partition processors and invoker integration. See <code>crates/worker/src/partition_processor_manager.rs</code> and <code>crates/worker/src/partition/</code>.</p>
+    </div>
+    <div class="card">
+      <h4>restate-invoker-impl</h4>
+      <p>Drives invocations against SDK deployments. Crate at <code>crates/invoker-impl/</code>.</p>
+    </div>
+    <div class="card">
+      <h4>restate-partition-store</h4>
+      <p>RocksDB-backed per-partition storage.</p>
+    </div>
+    <div class="card">
+      <h4>restate-log-server</h4>
+      <p>Replicated loglet storage server (plus <code>restate-log-server-grpc</code>).</p>
+    </div>
+    <div class="card">
+      <h4>restate-metadata-server / store / providers</h4>
+      <p>Cluster metadata plane.</p>
+    </div>
+    <div class="card">
+      <h4>restate-ingress-http / ingress-kafka</h4>
+      <p>External request entry points into the cluster.</p>
+    </div>
+    <div class="card">
+      <h4>restate-admin / admin-rest-model</h4>
+      <p>Admin API server and shared REST models.</p>
+    </div>
+    <div class="card">
+      <h4>restate-node</h4>
+      <p>Composes a Restate node from the components above.</p>
+    </div>
+    <div class="card">
+      <h4>restate-types</h4>
+      <p>Core domain types shared across crates (IDs, partitions, journal, logs, schema). Entry at <code>crates/types/src/lib.rs</code>.</p>
+    </div>
+    <div class="card">
+      <h4>restate-storage-query-datafusion</h4>
+      <p>DataFusion-based introspection queries over storage.</p>
+    </div>
+  </div>
+  <p class="cite">Full crate list: <code>crates/</code> directory; workspace deps declared in <code>Cargo.toml:44–80+</code>.</p>
+</section>
+
+<section id="build">
+  <h2>Build &amp; test workflow</h2>
+  <h3>Required system deps</h3>
+  <p>Clang, CMake, OpenSSL, RocksDB (use the Restate fork if dynamically linking), and protoc &ge; 3.15 <span class="cite">docs/dev/local-development.md:11–18</span>.</p>
+  <pre><code># Fedora
+sudo dnf install clang lld lldb libcxx cmake openssl-devel \
+  rocksdb-devel protobuf-compiler protobuf-devel just liburing-devel perl
+
+# macOS
+brew install cmake protobuf just</code></pre>
+  <p class="cite">docs/dev/local-development.md:22–31</p>
+
+  <h3>Common commands</h3>
+  <pre><code>just build --bin restate-server          # build server
+just build --bin restate                 # build CLI
+just test                                # cargo nextest run
+just verify                              # lint + test + doctest
+just flamegraph --bin restate-server     # profiling</code></pre>
+  <p class="cite">docs/dev/local-development.md:47–71, 162–166</p>
+
+  <div class="callout">
+    <strong>Tests use <code>cargo nextest run</code>, not <code>cargo test</code>.</strong> This is mandated project-wide. <span class="cite">CLAUDE.md (tooling rule), docs/dev/local-development.md:61</span>
+  </div>
+</section>
+
+<section id="guidelines">
+  <h2>Coding guidelines</h2>
+  <h3>Imports (3-stanza order, blank-line separated)</h3>
+  <ol>
+    <li><code>std</code></li>
+    <li>third-party crates</li>
+    <li><code>restate_*</code> crates</li>
+    <li>local crate (<code>self</code>, <code>super</code>, <code>crate</code>)</li>
+  </ol>
+  <p class="cite">CLAUDE.md (Rust Code Style Guide §1)</p>
+
+  <h3>Hard rules</h3>
+  <ul>
+    <li>Never hold a reference from <code>Configuration::pinned()</code> across an <code>.await</code>. <span class="cite">CLAUDE.md §4</span></li>
+    <li>Prefer <code>restate_clock::WallClock</code> over <code>std::time::SystemTime</code>. <span class="cite">CLAUDE.md §8</span></li>
+    <li>Use <code>ByteCount::from(value)</code> from <code>restate_memory</code> for byte sizes in logs/errors. <span class="cite">CLAUDE.md (style guide)</span></li>
+    <li>Use <code>KeyRange</code> (from <code>restate_sharding</code>, re-exported as <code>restate_types::sharding::KeyRange</code>) instead of <code>RangeInclusive&lt;PartitionKey&gt;</code> — it is <code>Copy</code>, 16 bytes vs 24, and wire-compatible serde/bilrost. <span class="cite">CLAUDE.md (style guide)</span></li>
+    <li>New or deprecated config options must carry <code>/// Since vX.Y.Z</code> in their doc comment. <span class="cite">CLAUDE.md (style guide)</span></li>
+    <li>Make illegal states unrepresentable; lean on niches (<code>Option&lt;NonZeroU32&gt;</code>, etc.). <span class="cite">CLAUDE.md §6–7</span></li>
+    <li>Crate names: hyphenated and prefixed <code>restate-</code>, placed under <code>crates/</code> without the prefix. <span class="cite">docs/dev/rust-guidelines.md:16–17</span></li>
+    <li>Avoid <code>Box&lt;dyn Error&gt;</code>; use <code>anyhow::Error</code> only when the consumer doesn’t need to distinguish variants. Otherwise prefer <code>thiserror</code> + <code>CodedError</code>. <span class="cite">docs/dev/rust-guidelines.md:81–84</span></li>
+  </ul>
+
+  <h3>Tests</h3>
+  <p>Keep unit-test maintenance in check: prefer high-signal tests on important paths; pack multiple assertions per test rather than splitting into many functions. <span class="cite">CLAUDE.md (style guide)</span></p>
+
+  <h3>Release notes</h3>
+  <p>Behavior-changing PRs must add an entry under <code>release-notes/unreleased/</code> (see <code>release-notes/README.md</code>). <span class="cite">CLAUDE.md (style guide)</span></p>
+</section>
+
+<section id="components">
+  <h2>Component design pattern</h2>
+  <p>Every Restate component tends to follow the same shape — internalize this; you will see it everywhere:</p>
+  <ul>
+    <li><strong>Options</strong>: <code>serde::{Serialize,Deserialize}</code> + <code>schemars::JsonSchema</code>; has a <code>build()</code> that returns the Service.</li>
+    <li><strong>Service</strong>: owns the event loop. <code>run(self, ..., drain: drain::Watch)</code> listens for shutdown.</li>
+    <li><strong>Handle</strong>: cheap-to-clone interface to the service; usually wraps a channel under the hood. Obtained via <code>Service::handle(&amp;self)</code>.</li>
+    <li><strong>Error</strong>: <code>thiserror</code>-based, often annotated with <code>CodedError</code>.</li>
+    <li>When possible, split a component into <code>_api</code> (handle + error types) and <code>_impl</code> (the service).</li>
+  </ul>
+  <p>Event-loop discipline: don’t pass channels in — let the service create them and hand out handles. <span class="cite">docs/dev/rust-guidelines.md:36–70</span></p>
+  <p>Ordering caveat: ordering is only preserved on a single channel. Two channels between the same pair of components is a race condition magnet. <span class="cite">docs/dev/rust-guidelines.md:72–77</span></p>
+</section>
+
+<section id="validation">
+  <h2>Pre-commit validation</h2>
+  <p>Before committing, run (the order matters for fast feedback):</p>
+  <pre><code>cargo check
+cargo nextest run --all-features
+cargo fmt --all -- --check
+cargo clippy --all-features --all-targets --workspace -- -D warnings
+
+# Only if you touched Cargo.toml / Cargo.lock:
+cargo deny --all-features check
+cargo hakari generate    # regenerate workspace-hack</code></pre>
+  <p class="cite">CLAUDE.md (Validation Before Committing Changes)</p>
+</section>
+
+<section id="hotpaths">
+  <h2>Latency-critical paths <span class="tag">handle with care</span></h2>
+  <p>Performance is a first-class concern (after correctness). Be especially careful when changing these areas — avoid needless allocations and prefer references:</p>
+  <ul>
+    <li><strong>Bifrost</strong> — <code>crates/bifrost/</code></li>
+    <li><strong>Networking layer</strong> — <code>crates/core/src/network/</code></li>
+    <li><strong>restate-core</strong> — task center, metadata, partitions infra</li>
+    <li><strong>Partition processor state machine</strong> — <code>crates/worker/src/partition/</code></li>
+    <li><strong>Invoker</strong> — <code>crates/invoker-impl/</code></li>
+  </ul>
+  <p class="cite">CLAUDE.md (Performance Notes)</p>
+  <p>For micro-benchmarks, use Criterion. A standalone log-server RocksDB benchmark lives in <code>tools/logserver-bench/</code> — see its <code>README.md</code> for write throughput, mixed RW, and trim workloads. <span class="cite">CLAUDE.md (Benchmarking Tools)</span></p>
+</section>
+
+<section id="tools">
+  <h2>Useful tools</h2>
+  <ul>
+    <li><code>grpcurl</code> for poking the runtime by hand. <span class="cite">docs/dev/debug.md:5</span></li>
+    <li>Jaeger via Docker for traces:
+      <pre><code>docker run --rm -d -p16686:16686 -p4317:4317 \
+  -e COLLECTOR_OTLP_ENABLED=true --name jaeger \
+  jaegertracing/all-in-one:latest</code></pre>
+      <span class="cite">docs/dev/local-development.md:86–88</span>
+    </li>
+    <li>Wireshark with the bundled service-protocol dissector for inspecting SDK ↔ runtime traffic. <span class="cite">docs/dev/debug.md:12–20, tools/service-protocol-wireshark-dissector/</span></li>
+    <li><code>sccache</code> to speed up incremental rustc. <span class="cite">docs/dev/local-development.md:73–75</span></li>
+    <li>If GCC fails to build deps, switch to clang via <code>~/.cargo/config.toml</code>. <span class="cite">docs/dev/local-development.md:172–219</span></li>
+  </ul>
+</section>
+
+<section id="firstweek">
+  <h2>Suggested first week</h2>
+  <ol>
+    <li><strong>Mon</strong>: Install toolchain (Rust, clang, cmake, protoc, just). Run <code>just build --bin restate-server</code> and <code>just test</code> end-to-end.</li>
+    <li><strong>Tue</strong>: Read <code>docs/dev/development-guidelines.md</code>, <code>docs/dev/rust-guidelines.md</code>, <code>docs/dev/debug.md</code>, and <code>CLAUDE.md</code> cover-to-cover.</li>
+    <li><strong>Wed</strong>: Trace one invocation end-to-end: <code>ingress-http</code> → <code>worker</code> partition processor → <code>invoker-impl</code> → <code>bifrost</code> log writes. Start with the entry crates listed above.</li>
+    <li><strong>Thu</strong>: Skim <code>restate-core</code> task center and <code>restate-bifrost</code> public API (<code>Bifrost</code>, <code>Appender</code>, <code>LogReadStream</code>). Trace how a record flows from producer to a partition processor.</li>
+    <li><strong>Fri</strong>: Pick a "good first issue" or a small cleanup in a hot-path crate; submit a PR following the component pattern, validation steps, and release-notes rule.</li>
+  </ol>
+</section>
+
+<section id="links">
+  <h2>External links</h2>
+  <ul>
+    <li>Public docs: <a href="https://docs.restate.dev">docs.restate.dev</a></li>
+    <li>GitHub org: <a href="https://github.com/restatedev">github.com/restatedev</a></li>
+    <li>Quickstart &amp; Tour of Restate (good for understanding the user perspective): linked from <span class="cite">README.md:30–31</span></li>
+    <li>Community: Discord and Slack invites in <span class="cite">README.md:86–93</span></li>
+  </ul>
+</section>
+
+<footer style="margin-top:3rem; color:var(--muted); font-size:0.85rem; border-top:1px solid var(--border); padding-top:1rem;">
+  Generated from a read of this workspace. Every claim above is anchored to a file path or line range so you can verify it directly. Welcome aboard.
+</footer>
+
+</div>
+</body>
+</html>
