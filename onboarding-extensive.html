@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restate Runtime — Extensive Onboarding</title>
+<style>
+  :root {
+    --fg: #1a1a1a;
+    --muted: #5f5f5f;
+    --bg: #faf9f5;
+    --card: #ffffff;
+    --accent: #e94f3b;
+    --accent2: #2557a7;
+    --border: #e6e3dc;
+    --code-bg: #f3f1ec;
+    --hl: #fff4e0;
+    --sidebar: #1f2933;
+    --sidebar-fg: #e6e3dc;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    margin: 0;
+    line-height: 1.55;
+    font-size: 16px;
+  }
+  /* Layout */
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+  aside.sidebar {
+    background: var(--sidebar);
+    color: var(--sidebar-fg);
+    padding: 1.5rem 1rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  aside.sidebar h2 { color: #fff; font-size: 1rem; margin: 1rem 0 0.4rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; }
+  aside.sidebar h1 { color: #fff; font-size: 1.15rem; margin: 0 0 0.2rem; }
+  aside.sidebar .tagline { color: var(--accent); font-size: 0.8rem; margin: 0 0 1rem; }
+  aside.sidebar a { display: block; color: var(--sidebar-fg); text-decoration: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.9rem; }
+  aside.sidebar a:hover { background: rgba(255,255,255,0.08); color: white; }
+  main { padding: 2.5rem 3rem 6rem; max-width: 1100px; }
+  /* Typography */
+  h1.page-title { margin: 0 0 0.3rem; font-size: 2.25rem; border-bottom: 3px solid var(--accent); padding-bottom: 0.5rem; }
+  h2 { margin-top: 3rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); font-size: 1.55rem; scroll-margin-top: 1rem; }
+  h3 { margin-top: 2rem; font-size: 1.2rem; color: var(--accent2); scroll-margin-top: 1rem; }
+  h4 { margin-top: 1.4rem; font-size: 1rem; }
+  p { margin: 0.6rem 0; }
+  code {
+    background: var(--code-bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.9em;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 0.9rem 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; }
+  /* Cards */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.9rem; margin: 1rem 0; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem;
+  }
+  .card h4 { margin: 0 0 0.3rem; font-size: 0.95rem; color: var(--accent); font-family: "SF Mono", Menlo, Consolas, monospace; }
+  .card p { margin: 0; font-size: 0.88rem; color: var(--muted); }
+  .card .path { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; display: block; }
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin-top: 0.8rem; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; }
+  tr:hover td { background: #fbfaf6; }
+  /* Citations */
+  .cite { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.78em; color: var(--muted); }
+  .cite a { color: var(--muted); text-decoration: underline dotted; }
+  /* Callouts */
+  .callout {
+    background: #fff7f5; border-left: 4px solid var(--accent); padding: 0.7rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0;
+  }
+  .callout.info { background: #f0f6ff; border-left-color: var(--accent2); }
+  .callout.warn { background: #fffaeb; border-left-color: #d18f00; }
+  .callout strong { display: block; margin-bottom: 0.2rem; }
+  /* Tags */
+  .tag {
+    display: inline-block; font-size: 0.7rem; padding: 0.12rem 0.5rem; background: var(--accent); color: white;
+    border-radius: 10px; margin-left: 0.4rem; vertical-align: middle; font-weight: 500;
+  }
+  .tag.blue { background: var(--accent2); }
+  .tag.gray { background: var(--muted); }
+  /* Mermaid-like flow blocks done in CSS */
+  .flow { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; }
+  .flow .box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.8rem;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+  }
+  .flow .arrow { color: var(--accent); font-weight: 700; }
+  /* Stack diagram */
+  .stack { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+  .stack .layer { padding: 0.6rem 1rem; margin: 0.3rem 0; background: var(--code-bg); border-left: 4px solid var(--accent); border-radius: 0 4px 4px 0; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; }
+  .stack .layer.accent2 { border-left-color: var(--accent2); }
+  /* Checklist */
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { position: relative; padding-left: 1.6rem; margin-bottom: 0.4rem; }
+  .checklist li::before {
+    content: "▢"; position: absolute; left: 0; top: 0; color: var(--accent); font-size: 1.1rem;
+  }
+  /* Footer */
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+  /* Mobile */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.sidebar { position: static; height: auto; }
+    main { padding: 1.5rem; }
+  }
+  a { color: var(--accent2); }
+  a:hover { color: var(--accent); }
+  .small { font-size: 0.85rem; color: var(--muted); }
+  .kbd {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.78em;
+    background: #fff; border: 1px solid var(--border); border-bottom-width: 2px; padding: 0.05rem 0.35rem; border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <h1>Restate</h1>
+  <p class="tagline">Runtime Onboarding</p>
+
+  <h2>Orientation</h2>
+  <a href="#welcome">Welcome</a>
+  <a href="#what-is">What Restate is</a>
+  <a href="#vocab">Vocabulary</a>
+  <a href="#architecture">Architecture at a glance</a>
+
+  <h2>Codebase</h2>
+  <a href="#layout">Repo layout</a>
+  <a href="#crates">Crate atlas</a>
+  <a href="#types">Core types</a>
+  <a href="#wal">Envelope / WAL</a>
+  <a href="#config">Configuration model</a>
+
+  <h2>Subsystems</h2>
+  <a href="#core">restate-core</a>
+  <a href="#bifrost">Bifrost</a>
+  <a href="#worker">Worker / PP</a>
+  <a href="#invoker">Invoker</a>
+  <a href="#ingress">Ingress</a>
+  <a href="#storage">Storage</a>
+  <a href="#metadata">Metadata</a>
+  <a href="#network">Networking</a>
+
+  <h2>Working in the repo</h2>
+  <a href="#build">Build &amp; test</a>
+  <a href="#guidelines">Coding guidelines</a>
+  <a href="#component-pattern">Component pattern</a>
+  <a href="#validation">Pre-commit checks</a>
+  <a href="#release-notes">Release notes</a>
+  <a href="#perf">Performance discipline</a>
+
+  <h2>Tooling</h2>
+  <a href="#tools">Tools &amp; binaries</a>
+  <a href="#debug">Debug &amp; tracing</a>
+  <a href="#bench">Benchmarks</a>
+
+  <h2>Plan</h2>
+  <a href="#firstweek">First-week plan</a>
+  <a href="#first-pr">Your first PR</a>
+  <a href="#reading-order">Recommended reading order</a>
+  <a href="#cheatsheet">Cheatsheet</a>
+  <a href="#links">External links</a>
+</aside>
+
+<main>
+
+<section id="welcome">
+  <h1 class="page-title">Restate Runtime — Extensive Onboarding</h1>
+  <p>Welcome to the runtime team. This document is an in-depth, evidence-cited tour of the <code>restate</code> codebase. Every claim is anchored to a file and (where useful) a line range so you can verify it yourself and use it as a launchpad for deeper exploration.</p>
+  <p class="small">Generated from a direct read of this workspace. Workspace version: <code>1.7.0-dev</code>, Rust edition <code>2024</code>, MSRV <code>1.95.0</code>. <span class="cite">Cargo.toml:35–38</span></p>
+</section>
+
+<section id="what-is">
+  <h2>What Restate is</h2>
+  <p>Restate is a distributed runtime that gives applications five primitives, summarized in the project README:</p>
+  <ul>
+    <li><strong>Reliable execution</strong> — code runs to completion; failures recover partial progress via durable execution. <span class="cite">README.md:98</span></li>
+    <li><strong>Reliable communication</strong> — exactly-once request/response, one-way, scheduled. <span class="cite">README.md:99</span></li>
+    <li><strong>Durable promises &amp; timers</strong> — sleep, webhooks, awaitables survive crashes. <span class="cite">README.md:100</span></li>
+    <li><strong>Consistent K/V state</strong> — per-entity state persisted atomically with execution progress. <span class="cite">README.md:101</span></li>
+    <li><strong>Suspending user code</strong> — code pauses on awaitables; ideal for FaaS. <span class="cite">README.md:102</span></li>
+  </ul>
+  <p>What this means for runtime engineers: there is a single per-partition state machine that is the source of truth, and everything else (invoker, ingress, networking, bifrost) feeds into or out of it. Understanding that loop is the single most important thing you'll do this week.</p>
+</section>
+
+<section id="vocab">
+  <h2>Vocabulary you will see every day</h2>
+  <table>
+    <thead><tr><th>Term</th><th>What it is</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td><code>PartitionId</code></td><td>A <code>u16</code> partition identifier; clusters are sharded into a fixed number of partitions.</td><td class="cite">crates/sharding/src/partition_id.rs:34</td></tr>
+      <tr><td><code>PartitionKey</code></td><td>A <code>u64</code> hash key; every request maps to a partition by this key.</td><td class="cite">crates/sharding/src/lib.rs:24</td></tr>
+      <tr><td><code>KeyRange</code></td><td>16-byte, <code>Copy</code> key-range type. Always use this instead of <code>RangeInclusive&lt;PartitionKey&gt;</code>.</td><td class="cite">CLAUDE.md (style guide); re-exported via <code>restate_types::sharding::KeyRange</code></td></tr>
+      <tr><td><code>LogId</code></td><td><code>u32</code> identifier for a log in Bifrost; usually one per partition.</td><td class="cite">crates/types/src/logs/mod.rs:52</td></tr>
+      <tr><td><code>Lsn</code></td><td><code>u64</code> log sequence number with <code>INVALID = 0</code>, <code>OLDEST = 1</code>.</td><td class="cite">crates/types/src/logs/mod.rs:103, 143–148</td></tr>
+      <tr><td><code>InvocationId</code></td><td><code>PartitionKey + InvocationUuid</code>. Identifies a single durable invocation.</td><td class="cite">crates/types/src/identifiers.rs:456</td></tr>
+      <tr><td><code>Envelope</code></td><td>The unit stored in Bifrost and consumed by the partition processor's state machine. Two wire versions exist.</td><td class="cite">crates/wal-protocol/src/v1.rs:33; v2.rs:63</td></tr>
+      <tr><td><code>Command</code></td><td>An enum of state-machine inputs inside an <code>Envelope</code> (Invoke, InvokerEffect, Timer, …).</td><td class="cite">crates/wal-protocol/src/v1.rs:135</td></tr>
+      <tr><td><code>Loglet</code></td><td>A single segment of a log chain. Bifrost chains loglets and seals them on reconfiguration.</td><td class="cite">crates/bifrost/src/loglet/, crates/bifrost/src/sealed_loglet.rs</td></tr>
+      <tr><td><code>Swimlane</code></td><td>A logical "lane" multiplexed over an inter-node connection (general / gossip / bifrost-data / ingress-data / bifrost-reads / datafusion).</td><td class="cite">crates/core/protobuf/restate/network.proto:17–32</td></tr>
+      <tr><td><code>Role</code></td><td>Per-node role: <code>HttpIngress</code>, <code>Admin</code>, <code>Worker</code>, <code>LogServer</code>, <code>MetadataServer</code>.</td><td class="cite">crates/types/src/nodes_config.rs:132–146</td></tr>
+      <tr><td><code>TaskCenter</code></td><td>Cooperative task supervisor; every spawn goes through it.</td><td class="cite">crates/core/src/task_center.rs:11–25</td></tr>
+      <tr><td><code>Configuration</code></td><td>Hot-reloadable, <code>ArcSwap</code>-backed global config struct.</td><td class="cite">crates/types/src/config/mod.rs:267–279</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="architecture">
+  <h2>Architecture at a glance</h2>
+  <p>A Restate cluster is a set of nodes, each running one or more of these roles:</p>
+  <div class="grid">
+    <div class="card"><h4>HttpIngress</h4><p>Accepts ingress HTTP requests. Crate: <code>restate-ingress-http</code>. Role: <span class="cite">nodes_config.rs:134</span></p></div>
+    <div class="card"><h4>Admin</h4><p>Cluster controller + user-facing admin REST API. Crate: <code>restate-admin</code>. <span class="cite">nodes_config.rs:135–136</span></p></div>
+    <div class="card"><h4>Worker</h4><p>Hosts partition processors: journal, state, invoker. Crate: <code>restate-worker</code>. <span class="cite">nodes_config.rs:137–138</span></p></div>
+    <div class="card"><h4>LogServer</h4><p>Stores replicated loglet segments. Crate: <code>restate-log-server</code>. <span class="cite">nodes_config.rs:139–140</span></p></div>
+    <div class="card"><h4>MetadataServer</h4><p>Source of truth for cluster metadata (nodes, partitions, schema, …). Crate: <code>restate-metadata-server</code>. <span class="cite">nodes_config.rs:141–145</span></p></div>
+  </div>
+
+  <h3>The hot path of an invocation</h3>
+  <p>A request enters via ingress, lands on the partition that owns its key, and gets driven through a durable state machine:</p>
+  <div class="flow">
+    <div class="box">SDK call</div><span class="arrow">→</span>
+    <div class="box">ingress-http</div><span class="arrow">→</span>
+    <div class="box">partition processor (leader)</div><span class="arrow">→</span>
+    <div class="box">Bifrost append (Envelope)</div><span class="arrow">→</span>
+    <div class="box">state machine apply</div><span class="arrow">→</span>
+    <div class="box">invoker drives SDK</div>
+  </div>
+  <p class="small">Map: <code>crates/ingress-http</code> → <code>crates/worker/src/partition/</code> (the <code>PartitionProcessor</code> at <span class="cite">crates/worker/src/partition/mod.rs:308</span>) → <code>crates/bifrost/</code> → <code>crates/worker/src/partition/state_machine/</code> (<code>StateMachine</code> at <span class="cite">crates/worker/src/partition/state_machine/mod.rs:149</span>) → <code>crates/invoker-impl/</code>.</p>
+
+  <h3>The node software stack</h3>
+  <div class="stack">
+    <div class="layer">server binary  —  <code>server/src/main.rs</code></div>
+    <div class="layer">restate-node  —  composes roles, owns startup</div>
+    <div class="layer accent2">roles: worker · admin · ingress (per <code>nodes_config::Role</code>)</div>
+    <div class="layer accent2">worker subsystems: PartitionProcessorManager · PartitionProcessor · Invoker</div>
+    <div class="layer">restate-core: TaskCenter · Metadata · Network · Partitions</div>
+    <div class="layer">restate-bifrost (durable log) — local-loglet · replicated-loglet · memory-loglet</div>
+    <div class="layer">restate-partition-store · restate-rocksdb · restate-log-server</div>
+    <div class="layer">restate-metadata-store · metadata-server</div>
+    <div class="layer">restate-types · restate-encoding · restate-platform (cross-cutting)</div>
+  </div>
+</section>
+
+<section id="layout">
+  <h2>Repo layout</h2>
+  <table>
+    <thead><tr><th>Path</th><th>Purpose</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td><code>crates/</code></td><td>All <code>restate-*</code> library crates.</td><td class="cite">Cargo.toml:4</td></tr>
+      <tr><td><code>server/</code></td><td><code>restate-server</code> binary entrypoint.</td><td class="cite">server/src/main.rs:1–47</td></tr>
+      <tr><td><code>cli/</code></td><td>The user-facing <code>restate</code> CLI.</td><td class="cite">Cargo.toml:3</td></tr>
+      <tr><td><code>lite/</code></td><td>Lightweight standalone binary variant.</td><td class="cite">Cargo.toml:10</td></tr>
+      <tr><td><code>tools/</code></td><td>Aux binaries: <code>restatectl</code>, <code>restate-doctor</code>, <code>bifrost-benchpress</code>, <code>logserver-bench</code>, <code>pp-bench</code>, <code>mock-service-endpoint</code>, <code>xtask</code>, Wireshark dissector.</td><td class="cite">Cargo.toml:12–19</td></tr>
+      <tr><td><code>benchmarks/</code></td><td>Workspace benchmark crate.</td><td class="cite">Cargo.toml:11</td></tr>
+      <tr><td><code>util/</code></td><td>Small reusable internal utilities (clock helpers, strings, time…).</td><td class="cite">Cargo.toml:5</td></tr>
+      <tr><td><code>service-protocol/</code></td><td>SDK ↔ runtime wire protocol; also <code>crates/service-protocol</code> and <code>crates/service-protocol-v4</code> for codec impls.</td><td class="cite">repo root listing</td></tr>
+      <tr><td><code>docs/dev/</code></td><td>Developer docs — read first.</td><td class="cite">docs/dev/README.md:1–19</td></tr>
+      <tr><td><code>release-notes/</code></td><td>Per-release notes + <code>unreleased/</code> bucket for in-flight work.</td><td class="cite">release-notes/README.md:1–25</td></tr>
+      <tr><td><code>justfile</code></td><td>Task runner: <code>build</code>, <code>test</code>, <code>lint</code>, <code>verify</code>, <code>docker</code>, <code>flamegraph</code>, …</td><td class="cite">justfile (recipes block)</td></tr>
+      <tr><td><code>workspace-hack/</code></td><td>Hakari-generated crate to unify feature flags; regenerate with <code>cargo hakari generate</code> when you touch Cargo.toml.</td><td class="cite">CLAUDE.md (validation)</td></tr>
+      <tr><td><code>clippy.toml</code> / <code>deny.toml</code></td><td>Lint and license/security policy.</td><td class="cite">repo root listing</td></tr>
+      <tr><td><code>charts/</code> / <code>docker/</code> / <code>npm/</code> / <code>dist-workspace.toml</code></td><td>Packaging and deployment artefacts.</td><td class="cite">repo root listing</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="crates">
+  <h2>Crate atlas</h2>
+  <p>Roughly 45 first-party crates. Grouping them by responsibility makes them easier to remember:</p>
+
+  <h3>Foundation</h3>
+  <div class="grid">
+    <div class="card"><h4>restate-types</h4><p>Core domain types: IDs, partitions, journal, logs, schema, configuration.</p><span class="path">crates/types/src/lib.rs:13–61</span></div>
+    <div class="card"><h4>restate-core</h4><p>TaskCenter, Metadata, Networking, Partitions infra.</p><span class="path">crates/core/src/lib.rs:19–27</span></div>
+    <div class="card"><h4>restate-platform</h4><p>Cross-cutting platform helpers (OS, signals, runtime).</p><span class="path">crates/platform/</span></div>
+    <div class="card"><h4>restate-memory</h4><p><code>ByteCount</code>, memory pools, leases. Use <code>ByteCount::from(v)</code> when printing byte sizes.</p><span class="path">CLAUDE.md (style guide)</span></div>
+    <div class="card"><h4>restate-clock</h4><p><code>WallClock</code> and time utilities; prefer over <code>std::time::SystemTime</code>.</p><span class="path">CLAUDE.md §8</span></div>
+    <div class="card"><h4>restate-encoding</h4><p>bilrost newtype derives and encoding glue.</p><span class="path">crates/encoding/</span></div>
+    <div class="card"><h4>restate-codederror</h4><p><code>CodedError</code> trait/derive for error codes shown in docs.</p><span class="path">crates/codederror/, used in worker/lib.rs:71–95</span></div>
+    <div class="card"><h4>restate-errors</h4><p>Common error helpers and the <code>warn_it</code> macro.</p><span class="path">crates/errors/</span></div>
+    <div class="card"><h4>restate-sharding</h4><p>Partition sharding primitives (<code>PartitionId</code>, <code>PartitionKey</code>, <code>KeyRange</code>).</p><span class="path">crates/sharding/src/{lib,partition_id}.rs</span></div>
+  </div>
+
+  <h3>Durable log</h3>
+  <div class="grid">
+    <div class="card"><h4>restate-bifrost</h4><p>The durable log abstraction. Public surface: <code>Bifrost</code>, <code>Appender</code>, <code>LogReadStream</code>, <code>BifrostService</code>, providers.</p><span class="path">crates/bifrost/src/lib.rs:28–37</span></div>
+    <div class="card"><h4>restate-log-server</h4><p>Server that hosts replicated loglet segments on disk.</p><span class="path">crates/log-server/</span></div>
+    <div class="card"><h4>restate-log-server-grpc</h4><p>The log-server's gRPC surface.</p><span class="path">crates/log-server-grpc/</span></div>
+    <div class="card"><h4>restate-wal-protocol</h4><p>Envelope/Command schema for writes flowing into bifrost.</p><span class="path">crates/wal-protocol/src/{v1,v2}.rs</span></div>
+  </div>
+
+  <h3>Worker (partition processing)</h3>
+  <div class="grid">
+    <div class="card"><h4>restate-worker</h4><p>Hosts <code>PartitionProcessorManager</code> and per-partition processors, plus Kafka ingestion integration.</p><span class="path">crates/worker/src/lib.rs:97–268</span></div>
+    <div class="card"><h4>restate-worker-api</h4><p>The <code>_api</code> half: handles &amp; trait surface used by other crates.</p><span class="path">used at worker/src/lib.rs:58</span></div>
+    <div class="card"><h4>restate-invoker-impl</h4><p>Drives invocations against SDK deployments; owns memory pool, retry, throttling.</p><span class="path">crates/invoker-impl/src/lib.rs:11–60</span></div>
+    <div class="card"><h4>restate-partition-store</h4><p>Per-partition RocksDB-backed storage. One column family per logical table.</p><span class="path">crates/partition-store/src/</span></div>
+    <div class="card"><h4>restate-storage-api</h4><p>The trait surface every storage table implements (read/write).</p><span class="path">crates/storage-api/src/lib.rs:93, 112</span></div>
+    <div class="card"><h4>restate-rocksdb</h4><p>Shared RocksDB wrapper with metrics and per-DB tuning.</p><span class="path">crates/rocksdb/</span></div>
+    <div class="card"><h4>restate-timer / restate-timer-queue</h4><p>Durable timer subsystem.</p><span class="path">crates/timer/, crates/timer-queue/</span></div>
+    <div class="card"><h4>restate-vqueues</h4><p>Virtual queues used by the scheduler. Introduced with v1.7 commands.</p><span class="path">crates/vqueues/, wal-protocol v1.rs:200–211</span></div>
+  </div>
+
+  <h3>Ingress / egress</h3>
+  <div class="grid">
+    <div class="card"><h4>restate-ingress-http</h4><p>HTTP front-door into the cluster.</p><span class="path">crates/ingress-http/</span></div>
+    <div class="card"><h4>restate-ingress-kafka</h4><p>Kafka-based ingestion service.</p><span class="path">crates/ingress-kafka/, used at worker/src/lib.rs:99</span></div>
+    <div class="card"><h4>restate-ingestion-client</h4><p>Internal client to push records into worker bifrost lanes.</p><span class="path">crates/ingestion-client/, used at worker/src/lib.rs:150–164</span></div>
+    <div class="card"><h4>restate-service-client</h4><p>Outbound client used by the invoker to call SDK deployments.</p><span class="path">used at invoker-impl/src/lib.rs:44</span></div>
+    <div class="card"><h4>restate-cloud-tunnel-client</h4><p>Egress through a Restate Cloud tunnel.</p><span class="path">crates/cloud-tunnel-client/</span></div>
+  </div>
+
+  <h3>Cluster plane</h3>
+  <div class="grid">
+    <div class="card"><h4>restate-metadata-store</h4><p>Client API for the metadata store.</p><span class="path">crates/metadata-store/</span></div>
+    <div class="card"><h4>restate-metadata-server</h4><p>The metadata-store server binary integration.</p><span class="path">crates/metadata-server/</span></div>
+    <div class="card"><h4>restate-metadata-providers</h4><p>Pluggable metadata-store backends.</p><span class="path">crates/metadata-providers/</span></div>
+    <div class="card"><h4>restate-node</h4><p>Composes a single Restate node: roles, network server, init.</p><span class="path">crates/node/src/{lib,roles,init,network_server}.rs</span></div>
+    <div class="card"><h4>restate-admin</h4><p>Admin REST API server.</p><span class="path">crates/admin/</span></div>
+    <div class="card"><h4>restate-admin-rest-model</h4><p>Models shared between server and CLI.</p><span class="path">crates/admin-rest-model/</span></div>
+  </div>
+
+  <h3>Cross-cutting</h3>
+  <div class="grid">
+    <div class="card"><h4>restate-storage-query-datafusion</h4><p>DataFusion-based introspection; powers <code>restate sql</code>.</p><span class="path">crates/storage-query-datafusion/</span></div>
+    <div class="card"><h4>restate-tracing-instrumentation</h4><p>Tracing/log init, OTLP exporter, Prometheus metrics.</p><span class="path">used at server/src/main.rs:32–34</span></div>
+    <div class="card"><h4>restate-cli-util</h4><p>CLI styling, output macros, table helpers. Read its README before touching CLI.</p><span class="path">crates/cli-util/README.md</span></div>
+    <div class="card"><h4>restate-service-protocol / -v4</h4><p>SDK ↔ runtime protocol codecs.</p><span class="path">used at worker/state_machine/mod.rs:37–38</span></div>
+    <div class="card"><h4>restate-limiter</h4><p>Rate-limiting / rule-book primitives (<code>LimitKey</code>, <code>RuleBook</code>).</p><span class="path">used at worker/state_machine/mod.rs:33–34</span></div>
+    <div class="card"><h4>restate-fs-util / hyper-uds / object-store-util / serde-util / futures-util</h4><p>Small utility crates wrapping common dependencies.</p><span class="path">crates/*-util, crates/hyper-uds</span></div>
+  </div>
+  <p class="small">All workspace dependency declarations live in <code>Cargo.toml:44–80+</code>. Crate names are hyphenated and prefixed <code>restate-</code>; directories under <code>crates/</code> drop the prefix. <span class="cite">docs/dev/rust-guidelines.md:16–17</span></p>
+</section>
+
+<section id="types">
+  <h2>Core types you'll see in every diff</h2>
+  <p>The <code>restate-types</code> crate is the shared vocabulary. Its top-level modules:</p>
+  <pre><code>art            cluster            cluster_state      config       config_loader
+deployment     endpoint_manifest  epoch              errors       identifiers
+invocation     journal            journal_events     journal_v2   live
+locality       logs               message            metadata     metadata_store
+net            nodes_config       partition_table    partitions   protobuf
+rate           replicated_loglet  replication        retries      schema
+service_discovery  service_protocol  state_mut       storage      timer
+vqueues        clock (re-export of restate-clock::time)</code></pre>
+  <p class="cite">crates/types/src/lib.rs:13–80</p>
+
+  <h3>Identifier conventions</h3>
+  <ul>
+    <li><code>InvocationId</code> packs the partition key and a UUID so routing is trivial. <span class="cite">crates/types/src/identifiers.rs:456</span></li>
+    <li><code>PartitionId</code> is a <code>u16</code> newtype with niche-friendly layout. <span class="cite">crates/sharding/src/partition_id.rs:34</span></li>
+    <li><code>LogId</code>/<code>Lsn</code> have explicit <code>MIN</code>/<code>MAX</code>/<code>INVALID</code>/<code>OLDEST</code> consts — don't hand-roll comparisons. <span class="cite">crates/types/src/logs/mod.rs:54–57, 143–148</span></li>
+  </ul>
+</section>
+
+<section id="wal">
+  <h2>Envelope / WAL protocol</h2>
+  <p>Every state-machine input is wrapped in an <code>Envelope</code> stored in Bifrost. There are two versions; v1 is the active dispatch enum and v2 introduces a compact discriminant:</p>
+  <ul>
+    <li><code>Envelope</code> v1 (header + <code>Command</code>): <span class="cite">crates/wal-protocol/src/v1.rs:33</span></li>
+    <li><code>Envelope&lt;R&gt;</code> v2 (generic record body): <span class="cite">crates/wal-protocol/src/v2.rs:63</span></li>
+    <li><code>CommandKind</code> (v2 discriminator): <span class="cite">crates/wal-protocol/src/v2.rs:240</span></li>
+  </ul>
+
+  <h3>Selected <code>Command</code> variants (v1)</h3>
+  <p>This is what your state machine actually applies. Each variant lists its since-version when relevant:</p>
+  <table>
+    <thead><tr><th>Variant</th><th>Purpose</th><th>Since</th></tr></thead>
+    <tbody>
+      <tr><td><code>UpdatePartitionDurability</code></td><td>Updates the <code>PARTITION_DURABILITY</code> FSM variable.</td><td>v1.4.2</td></tr>
+      <tr><td><code>VersionBarrier</code></td><td>Fences off state machine changes requiring a min server version.</td><td>v1.4.0</td></tr>
+      <tr><td><code>AnnounceLeader</code></td><td>Control-plane leader announcement.</td><td>—</td></tr>
+      <tr><td><code>PatchState</code></td><td>Manual storage state mutation.</td><td>—</td></tr>
+      <tr><td><code>TerminateInvocation</code> / <code>PurgeInvocation</code> / <code>PurgeJournal</code></td><td>Lifecycle controls for invocations.</td><td>—</td></tr>
+      <tr><td><code>Invoke</code> / <code>ProxyThrough</code> / <code>AttachInvocation</code></td><td>Start, proxy, or attach to an invocation.</td><td>—</td></tr>
+      <tr><td><code>ResumeInvocation</code> / <code>RestartAsNewInvocation</code></td><td>Pause/resume &amp; restart-from-prefix flows.</td><td>v1.6 (pause/resume)</td></tr>
+      <tr><td><code>InvokerEffect</code></td><td>Invoker → PP effect (journal entry, completion, …).</td><td>—</td></tr>
+      <tr><td><code>Timer</code> / <code>ScheduleTimer</code></td><td>Timer fires &amp; scheduling.</td><td>—</td></tr>
+      <tr><td><code>InvocationResponse</code></td><td>Cross-partition response (also abused for promise/output replies in v1).</td><td>—</td></tr>
+      <tr><td><code>NotifyGetInvocationOutputResponse</code> / <code>NotifySignal</code></td><td>Journal-v2 PP↔PP notifications.</td><td>—</td></tr>
+      <tr><td><code>UpsertSchema</code></td><td>Replica-consistent schema upsert.</td><td>v1.6.0</td></tr>
+      <tr><td><code>UpsertRuleBook</code></td><td>Cluster-global rule book; persisted and pushed to leader's <code>UserLimiter</code>.</td><td>v1.7.0</td></tr>
+      <tr><td><code>VQSchedulerDecisions</code> / <code>VQueuesPause</code> / <code>VQueuesResume</code></td><td>VQueues scheduler commands (bilrost-encoded blobs).</td><td>v1.7.0</td></tr>
+    </tbody>
+  </table>
+  <p class="cite">crates/wal-protocol/src/v1.rs:135–212</p>
+
+  <div class="callout info">
+    <strong>Journal v1 vs v2</strong>
+    Two journal representations exist concurrently. v2 is the path forward; v1 paths often have comments like “KINDA DEPRECATED.” See <code>crates/types/src/journal_v2/mod.rs</code> for the data model overview, and tables <code>journal_table</code> vs <code>journal_table_v2</code> in <code>crates/storage-api/src/</code>.
+  </div>
+</section>
+
+<section id="config">
+  <h2>Configuration model</h2>
+  <p>Configuration is a hot-reloadable singleton:</p>
+  <ul>
+    <li><code>Configuration</code> struct is composed of per-subsystem option blocks. <span class="cite">crates/types/src/config/mod.rs:267–279</span></li>
+    <li>Storage is an <code>ArcSwap&lt;Configuration&gt;</code>; <code>Configuration::pinned()</code> gives a fast snapshot. <span class="cite">crates/types/src/config/mod.rs:243–256, 315–319</span></li>
+    <li>The configuration sub-modules are: <code>admin · aws · bifrost · common · dynamodb_store · gossip · http · ingress · invocation · kafka · log_server · metadata_server · networking · object_store · query_engine · rocksdb · worker</code>. <span class="cite">crates/types/src/config/mod.rs:14–52</span></li>
+  </ul>
+  <div class="callout warn">
+    <strong>Hard rule: don't hold a <code>Configuration::pinned()</code> reference across <code>.await</code>.</strong>
+    The snapshot is built on a limited number of fast slots; holding it across awaits starves the rest of the process. Re-pin after the await. <span class="cite">CLAUDE.md (Rust style §4)</span>
+  </div>
+
+  <h3>Adding or deprecating config keys</h3>
+  <p>Every new or deprecated config option must carry <code>/// Since vX.Y.Z</code> in its doc comment. The schema doc generation reads these, and they end up in the published config reference. <span class="cite">CLAUDE.md (style guide)</span></p>
+  <pre><code>cargo xtask generate-config-schema &gt; restate_config_schema.json
+generate-schema-doc --minify restate_config_schema.json restate_config_doc.html</code></pre>
+  <p class="cite">docs/dev/local-development.md:121–134</p>
+</section>
+
+<section id="core">
+  <h2>restate-core</h2>
+  <p>The core crate exposes the foundation primitives every other crate uses:</p>
+  <pre><code>mod error;
+mod identification;
+mod metadata;
+pub mod metric_definitions;
+pub mod network;
+pub mod partitions;
+pub mod protobuf;
+pub mod task_center;</code></pre>
+  <p class="cite">crates/core/src/lib.rs:19–27</p>
+
+  <h3>TaskCenter</h3>
+  <p><code>TaskCenter</code> is the supervisor for every long-running task in the process. Spawning anything outside it is a bug. Important properties:</p>
+  <ul>
+    <li>Tasks live in named <strong>kinds</strong>; the kind decides what happens on cancellation (<code>ignore</code>, <code>abort</code>, <code>wait</code>) and on error (<code>log</code>, <code>shutdown</code>). <span class="cite">crates/core/src/task_center/task_kind.rs:46–67</span></li>
+    <li>Many task kinds are runtime-relevant: <code>WorkerRole</code>, <code>PartitionProcessor</code>, <code>PartitionProcessorManager</code>, <code>PartitionSnapshotProducer</code>, <code>BifrostWatchdog</code>, <code>BifrostAppender</code>, <code>BifrostBackground{High,Low}Priority</code>, <code>SequencerAppender</code>, <code>LogletWorker</code>, <code>LogStoreWriter</code>, <code>Shuffle</code>, <code>Cleaner</code>, <code>LogTrimmer</code>, <code>NetworkMessageHandler</code>, <code>ConnectionReactor</code>, <code>ClusterController</code>, <code>FailureDetector</code>, <code>MetadataBackgroundSync</code>, <code>SystemBoot</code>, <code>SystemService</code>. <span class="cite">crates/core/src/task_center/task_kind.rs:67–202</span></li>
+    <li>Tasks are spawned via <code>TaskCenter::spawn_child(kind, name, future)</code>. Example: <span class="cite">crates/worker/src/lib.rs:220–231</span></li>
+  </ul>
+
+  <h3>Metadata, Network, Partitions</h3>
+  <ul>
+    <li><code>Metadata</code> — versioned cluster metadata (nodes config, partition table, schema, logs). Access via <code>Metadata::current()</code> or <code>Metadata::with_current(|m| …)</code>. <span class="cite">crates/core/src/metadata/, used at worker/src/lib.rs:128, 152</span></li>
+    <li><code>Networking&lt;T&gt;</code> — <code>TransportConnect</code>-generic networking facade with connection manager, message router, multiple swimlanes. <span class="cite">crates/core/src/network/mod.rs:11–53</span></li>
+    <li><code>PartitionRouting</code> — derives partition→leader routing from <code>PartitionReplicaSetStates</code>. <span class="cite">used at worker/src/lib.rs:124</span></li>
+  </ul>
+</section>
+
+<section id="bifrost">
+  <h2>Bifrost — the durable log</h2>
+  <p>Bifrost is Restate's <em>"durable interconnect system"</em> — quoting its own docstring. The <code>Bifrost</code> handle is cheap to clone (it wraps <code>Arc&lt;BifrostInner&gt;</code>), so pass it by value, not behind extra locks. <span class="cite">crates/bifrost/src/bifrost.rs:60–73</span></p>
+
+  <h3>Public surface</h3>
+  <pre><code>pub use appender::Appender;
+pub use background_appender::{AppenderHandle, BackgroundAppender, CommitToken, LogSender};
+pub use bifrost::{Bifrost, ErrorRecoveryStrategy};
+pub use bifrost_admin::{BifrostAdmin, MaybeSealedSegment};
+pub use error::{Error, Result};
+pub use read_stream::LogReadStream;
+pub use read_stream_registry::ActiveReadStreamRegistry;
+pub use record::{InputRecord, LogEntry, MaybeRecord, RecordKind};
+pub use service::BifrostService;
+pub use types::*;</code></pre>
+  <p class="cite">crates/bifrost/src/lib.rs:28–37</p>
+
+  <h3>Loglet providers</h3>
+  <p>A log is a chain of <em>loglet segments</em>. Each segment is backed by a provider:</p>
+  <div class="grid">
+    <div class="card"><h4>local-loglet</h4><p>Single-node RocksDB-backed log. Used by lite/single-node deployments and in tests.</p><span class="path">crates/bifrost/src/providers/local_loglet/</span></div>
+    <div class="card"><h4>replicated-loglet</h4><p>The production replicated log: sequencer + log servers + replication tasks.</p><span class="path">crates/bifrost/src/providers/replicated_loglet/{sequencer,replication,read_path,tasks,…}</span></div>
+    <div class="card"><h4>memory-loglet</h4><p>In-memory provider for tests.</p><span class="path">crates/bifrost/src/providers/memory_loglet.rs</span></div>
+  </div>
+
+  <h3>Reconfiguration and error recovery</h3>
+  <p>When an appender encounters a sealed loglet or a write failure, it follows an <code>ErrorRecoveryStrategy</code>:</p>
+  <table>
+    <thead><tr><th>Strategy</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>Wait</code></td><td>Don't extend the chain; wait for the situation to clear.</td></tr>
+      <tr><td><code>ExtendChainAllowed</code> (default)</td><td>Extend only as a last resort.</td></tr>
+      <tr><td><code>ExtendChainPreferred</code></td><td>Eagerly create a new loglet segment.</td></tr>
+    </tbody>
+  </table>
+  <p class="cite">crates/bifrost/src/bifrost.rs:48–58</p>
+
+  <h3>What Bifrost touches</h3>
+  <ul>
+    <li>The <strong>partition processor</strong> reads its assigned log to drive the state machine and appends to publish Envelopes. <span class="cite">crates/worker/src/partition/mod.rs:308–326</span></li>
+    <li>The <strong>watchdog</strong> (TaskKind <code>BifrostWatchdog</code>) supervises providers. <span class="cite">crates/bifrost/src/watchdog.rs (exists), task_kind.rs:126</span></li>
+    <li>The <strong>sequencer</strong> serializes appends across the replicated loglet replicas.</li>
+  </ul>
+</section>
+
+<section id="worker">
+  <h2>Worker &amp; Partition Processor</h2>
+  <p>The worker role is the heart of the runtime. Its top-level <code>Worker</code> struct composes ingress-Kafka, the storage query context, the subscription controller, and the partition processor manager:</p>
+  <pre><code>pub struct Worker&lt;T&gt; {
+    storage_query_context: QueryContext,
+    ingress_kafka: IngressKafkaService&lt;T&gt;,
+    subscription_controller_handle: SubscriptionControllerHandle,
+    partition_processor_manager: PartitionProcessorManager&lt;T&gt;,
+}</code></pre>
+  <p class="cite">crates/worker/src/lib.rs:97–102</p>
+
+  <h3>Module layout</h3>
+  <pre><code>crates/worker/src/
+├── error.rs
+├── handle.rs
+├── invoker_integration.rs
+├── lib.rs
+├── metric_definitions.rs
+├── partition/                       ← per-partition processor
+│   ├── cleaner.rs
+│   ├── invoker_storage_reader.rs
+│   ├── leadership/                  ← leader-state, durability tracker, self-proposer, trim queue
+│   ├── mod.rs
+│   ├── rpc/
+│   ├── shuffle.rs
+│   ├── state_machine/               ← the apply loop
+│   │   ├── actions.rs
+│   │   ├── entries/
+│   │   ├── lifecycle/
+│   │   ├── mod.rs
+│   │   ├── tests/
+│   │   └── utils.rs
+│   └── types.rs
+├── partition_processor_manager/     ← spawns &amp; supervises processors
+│   ├── introspection.rs
+│   ├── processor_state.rs
+│   └── spawn_processor_task.rs
+├── partition_processor_manager.rs
+├── rule_book_cache.rs
+├── subscription_controller.rs
+└── subscription_integration.rs</code></pre>
+  <p class="cite">crates/worker/src/ listing</p>
+
+  <h3>PartitionProcessor</h3>
+  <p>One per assigned (PartitionId, leader-epoch) pair on this node. It owns:</p>
+  <ul>
+    <li>A <code>StateMachine</code> (the apply loop). <span class="cite">crates/worker/src/partition/mod.rs:311; state_machine/mod.rs:149</span></li>
+    <li>A <code>Bifrost</code> handle for reads/appends. <span class="cite">crates/worker/src/partition/mod.rs:312</span></li>
+    <li>A <code>LeadershipState</code> with self-proposer and trim queue. <span class="cite">crates/worker/src/partition/leadership/</span></li>
+    <li>The <code>PartitionStore</code> (RocksDB-backed). <span class="cite">crates/worker/src/partition/mod.rs:320</span></li>
+    <li>A status watch channel, <code>TargetLeaderState</code>, replica-set state, key filter, durability tracker. <span class="cite">crates/worker/src/partition/mod.rs:308–326</span></li>
+  </ul>
+
+  <h3>ProcessorError — the things that can go wrong</h3>
+  <p>Two recovery-relevant variants you'll see often:</p>
+  <ul>
+    <li><code>TrimGapEncountered { read_pointer, trim_gap_end }</code> — partition trailed the log past a trim; PPM may restart it from a snapshot. <span class="cite">crates/worker/src/partition/mod.rs:331–339</span></li>
+    <li><code>DataLossGapEncountered { … }</code> — gap detected; cluster-level repair territory. <span class="cite">crates/worker/src/partition/mod.rs:340–344</span></li>
+    <li><code>PartitionAheadOfLog { partition_applied_lsn, log_tail_lsn }</code> — partition state has progressed past the log tail: data-loss or mismatch. <span class="cite">crates/worker/src/partition/mod.rs:345–349</span></li>
+  </ul>
+
+  <h3>State machine</h3>
+  <p>The apply loop lives at <span class="cite">crates/worker/src/partition/state_machine/mod.rs:149</span>. It pulls in nearly every <code>restate-storage-api</code> trait — read- and write-side for inbox, outbox, journal (v1 &amp; v2), invocation status, virtual-object status, state, promise, timer, lock, fsm, journal_events, and vqueue tables. <span class="cite">crates/worker/src/partition/state_machine/mod.rs:39–66</span></p>
+  <p>Two protocol codecs sit alongside it: <code>ProtobufRawEntryCodec</code> for v1 journal entries and <code>ServiceProtocolV4Codec</code> for v2. <span class="cite">state_machine/mod.rs:37–38</span></p>
+</section>
+
+<section id="invoker">
+  <h2>Invoker</h2>
+  <p>The invoker is the component that actually talks to user SDKs. Its <code>state_machine_manager</code>, <code>invocation_state_machine</code>, and <code>invocation_task</code> modules drive the per-invocation protocol:</p>
+  <pre><code>mod error;
+mod input_command;
+mod invocation_state_machine;
+mod invocation_task;
+mod metric_definitions;
+mod quota;
+mod state_machine_manager;
+mod status_store;</code></pre>
+  <p class="cite">crates/invoker-impl/src/lib.rs:11–18</p>
+
+  <p>Notable dependencies that hint at design:</p>
+  <ul>
+    <li><strong>Memory budgeting</strong> through <code>restate-memory</code>: <code>ByteCount</code>, <code>LocalMemoryPool</code>, <code>MemoryLease</code>, <code>MemoryPool</code>, <code>OutOfMemoryKind</code>. <span class="cite">invoker-impl/src/lib.rs:42</span></li>
+    <li><strong>Backpressure</strong> via <code>gardal</code> — <code>ThrottledStream</code> and <code>PaddedAtomicSharedStorage</code>. <span class="cite">invoker-impl/src/lib.rs:30–31</span></li>
+    <li><strong>Persistent queue</strong> for queued invocations via <code>restate-queue::SegmentQueue</code>. <span class="cite">invoker-impl/src/lib.rs:43</span></li>
+    <li><strong>Outbound calls</strong> via <code>restate-service-client::ServiceClient</code>. <span class="cite">invoker-impl/src/lib.rs:44</span></li>
+  </ul>
+
+  <p>The invoker emits <code>restate_worker_api::invoker::Effect</code> events that come back into the state machine as <code>Command::InvokerEffect</code>. <span class="cite">wal-protocol/src/v1.rs:170–172</span></p>
+</section>
+
+<section id="ingress">
+  <h2>Ingress</h2>
+  <p>Two ingress surfaces exist:</p>
+  <ul>
+    <li><code>restate-ingress-http</code> — the HTTP front-door for SDK calls and admin ingestion.</li>
+    <li><code>restate-ingress-kafka</code> — Kafka-backed ingestion driven by subscriptions; created and run by the worker. <span class="cite">crates/worker/src/lib.rs:132–134, 226–231</span></li>
+  </ul>
+  <p>Inside the worker, an internal <code>IngestionClient</code> pushes records into the cluster over the <code>BifrostData</code> swimlane, sized by the configured shuffle memory budget and batched per <code>shuffle.request_batch_size</code>. <span class="cite">crates/worker/src/lib.rs:150–164</span></p>
+</section>
+
+<section id="storage">
+  <h2>Storage</h2>
+  <p>Storage is split into <code>restate-storage-api</code> (the trait surface) and <code>restate-partition-store</code> (the RocksDB-backed implementation). The full table list:</p>
+  <pre><code>deduplication_table   inbox_table             invocation_status_table
+journal_events        journal_table           journal_table_v2
+lock_table            outbox_table            promise_table
+service_status_table  state_table             timer_table
+vqueue_table          fsm_table</code></pre>
+  <p class="cite">crates/storage-api/src/ listing</p>
+  <p>Implementations live in matching directories under <code>crates/partition-store/src/</code>, plus partition-store-specific pieces: <code>durable_lsn_tracking.rs</code>, <code>partition_db.rs</code>, <code>partition_store.rs</code>, <code>partition_store_manager.rs</code>, <code>snapshots/</code>, <code>memory.rs</code>, <code>migrations.rs</code>. <span class="cite">crates/partition-store/src/ listing</span></p>
+
+  <h3>Snapshots &amp; trim</h3>
+  <p>Periodic partition snapshots are enabled via <code>worker.snapshots</code> options; the worker refuses to start with a snapshot interval but no destination. <span class="cite">crates/worker/src/lib.rs:138–146</span> The <code>TaskKind::PartitionSnapshotProducer</code> handles production; trims are driven by <code>TaskKind::LogTrimmer</code>. <span class="cite">crates/core/src/task_center/task_kind.rs:110, 121</span></p>
+</section>
+
+<section id="metadata">
+  <h2>Metadata</h2>
+  <p>Metadata flows through:</p>
+  <ul>
+    <li><code>restate-metadata-store</code> — client API to the store.</li>
+    <li><code>restate-metadata-server</code> — the server implementation.</li>
+    <li><code>restate-metadata-providers</code> — pluggable backends.</li>
+    <li><code>restate-metadata-server-grpc</code> — gRPC surface.</li>
+  </ul>
+  <p>In-process, <code>restate_core::Metadata</code> exposes versioned views: <code>NodesConfiguration</code> (whose <code>Role</code> enum we covered above <span class="cite">nodes_config.rs:132–146</span>), partition table, schema, logs metadata, etc. Components consume these via the <code>Live&lt;T&gt;</code>/<code>LiveLoad</code> abstractions in <code>restate-types::live</code>, which allow cheap snapshotting with change notifications.</p>
+  <p>The worker, for instance, subscribes to schema versions to update Kafka subscriptions. <span class="cite">crates/worker/src/lib.rs:239–267</span></p>
+</section>
+
+<section id="network">
+  <h2>Networking</h2>
+  <p>The networking facade is in <code>restate-core::network</code>. It is generic over a <code>TransportConnect</code>, multiplexes <em>swimlanes</em>, and exposes a message router for typed protocol handlers.</p>
+
+  <h3>Swimlanes</h3>
+  <table>
+    <thead><tr><th>Swimlane</th><th>Use</th></tr></thead>
+    <tbody>
+      <tr><td><code>GENERAL</code></td><td>Default, general node-to-node messaging.</td></tr>
+      <tr><td><code>GOSSIP</code></td><td>Gossip and failure detection.</td></tr>
+      <tr><td><code>BIFROST_DATA</code></td><td>Fat pipe for bifrost record streaming.</td></tr>
+      <tr><td><code>INGRESS_DATA</code></td><td>Fat pipe for ingestion → worker traffic.</td></tr>
+      <tr><td><code>BIFROST_READS</code></td><td>Reads between bifrost nodes and log-servers.</td></tr>
+      <tr><td><code>DATAFUSION</code></td><td>Remote DataFusion scans.</td></tr>
+    </tbody>
+  </table>
+  <p class="cite">crates/core/protobuf/restate/network.proto:17–32</p>
+
+  <h3>Connection model</h3>
+  <ul>
+    <li><code>ConnectionManager</code> tracks live <code>Connection</code>s; <code>LazyConnection</code> defers connect until first use. <span class="cite">crates/core/src/network/mod.rs:31–44</span></li>
+    <li><code>MessageRouter</code> dispatches incoming typed messages to registered services.</li>
+    <li><code>NetworkServerBuilder</code> wires up the inbound side.</li>
+    <li><code>TransportConnect</code> is the abstraction over actual transport; tests inject mocks via <code>test_util</code>. <span class="cite">crates/core/src/network/mod.rs:46–52</span></li>
+  </ul>
+</section>
+
+<section id="build">
+  <h2>Build &amp; test workflow</h2>
+  <h3>System dependencies</h3>
+  <p>Clang, CMake, OpenSSL, RocksDB (use the Restate fork if dynamically linking — see the docs), and protoc &ge; 3.15. <span class="cite">docs/dev/local-development.md:11–18</span></p>
+  <pre><code># Fedora
+sudo dnf install clang lld lldb libcxx cmake openssl-devel \
+  rocksdb-devel protobuf-compiler protobuf-devel just liburing-devel perl
+
+# macOS
+brew install cmake protobuf just</code></pre>
+  <p class="cite">docs/dev/local-development.md:22–31</p>
+
+  <h3>Common commands</h3>
+  <pre><code>just build --bin restate-server          # build the server
+just build --bin restate                 # build the CLI
+just test                                # cargo nextest run with the right feature set
+just verify                              # lint + test + doctest
+just flamegraph --bin restate-server     # profiling
+just docker                              # build docker image
+just print-target                        # show the resolved target triple</code></pre>
+  <p class="cite">justfile (recipes); docs/dev/local-development.md:47–71, 162–166</p>
+
+  <div class="callout">
+    <strong>Tests use <code>cargo nextest run</code>, not <code>cargo test</code>.</strong>
+    Project-mandated tooling. <span class="cite">CLAUDE.md (tooling rule); docs/dev/local-development.md:61</span>
+  </div>
+
+  <h3>Speeding things up</h3>
+  <ul>
+    <li><code>sccache</code> for rustc artifact caching. <span class="cite">docs/dev/local-development.md:73–75</span></li>
+    <li>If GCC fails on krb5 or similar, switch to <code>clang</code> via <code>~/.cargo/config.toml</code>. The doc even has a wrapper script for clang &gt;21 that overrides krb5-src's <code>-Werror</code>. <span class="cite">docs/dev/local-development.md:172–219</span></li>
+  </ul>
+</section>
+
+<section id="guidelines">
+  <h2>Coding guidelines</h2>
+
+  <h3>Import order</h3>
+  <ol>
+    <li><code>std</code></li>
+    <li>third-party crates</li>
+    <li><code>restate_*</code> crates</li>
+    <li>local crate (<code>self</code>, <code>super</code>, <code>crate</code>)</li>
+  </ol>
+  <p>Blank line between each stanza. <code>cargo fmt</code> must respect this. <span class="cite">CLAUDE.md (Rust Code Style §1–2)</span></p>
+
+  <h3>Hard rules</h3>
+  <ul>
+    <li>Never hold a reference from <code>Configuration::pinned()</code> across an <code>.await</code>. <span class="cite">CLAUDE.md §4</span></li>
+    <li>Prefer <code>restate_clock::WallClock</code> over <code>std::time::SystemTime</code>. <span class="cite">CLAUDE.md §8</span></li>
+    <li>Use <code>ByteCount::from(value)</code> when logging byte sizes. <span class="cite">CLAUDE.md (style guide)</span></li>
+    <li>Use <code>KeyRange</code> (re-exported via <code>restate_types::sharding::KeyRange</code>) instead of <code>RangeInclusive&lt;PartitionKey&gt;</code>. <span class="cite">CLAUDE.md (style guide)</span></li>
+    <li>New or deprecated config options must include <code>/// Since vX.Y.Z</code>. <span class="cite">CLAUDE.md (style guide)</span></li>
+    <li>Crate names: hyphenated, prefixed <code>restate-</code>, placed under <code>crates/</code> without the prefix. <span class="cite">docs/dev/rust-guidelines.md:16–17</span></li>
+    <li>Don't expose channels themselves — go through the <code>Handle</code> or similar. <span class="cite">docs/dev/rust-guidelines.md:55</span></li>
+    <li>Event loops <em>own</em> their channels; don't inject them. <span class="cite">docs/dev/rust-guidelines.md:56–70</span></li>
+    <li>Message ordering is only preserved on a single channel. Two channels between the same pair of components is a race condition. <span class="cite">docs/dev/rust-guidelines.md:72–77</span></li>
+  </ul>
+
+  <h3>Error design</h3>
+  <ul>
+    <li>Use <code>thiserror</code> for error enums with kind variants.</li>
+    <li>Never <code>Box&lt;dyn Error&gt;</code>; use <code>anyhow::Error</code> only when the caller doesn't need to distinguish variants.</li>
+    <li>Annotate variants with <code>#[code(...)]</code> via <code>CodedError</code> so error pages appear in published docs. Example: <code>worker::BuildError</code> at <span class="cite">crates/worker/src/lib.rs:71–95</span>.</li>
+    <li>See <code>restate-errors</code> for the conventions. <span class="cite">docs/dev/rust-guidelines.md:81–84</span></li>
+  </ul>
+
+  <h3>Tests</h3>
+  <p>"Maintenance of unit tests is an overhead we need to keep in check." Add tests for important paths and pack multiple assertions per function rather than splitting them. <span class="cite">CLAUDE.md (style guide)</span></p>
+
+  <h3>Code style — Less is more</h3>
+  <p>From <code>docs/dev/rust-guidelines.md</code>:</p>
+  <ul>
+    <li>Avoid repeating the module name in type names: define <code>Error</code> in <code>invoker</code>, not <code>InvokerError</code>; import as <code>invoker::Error</code>. <span class="cite">rust-guidelines.md:10–11</span></li>
+    <li>Avoid <code>pub</code>/<code>pub(crate)</code> fields except for passive data structs (<code>restate-types</code>) or when fields need to be moved out. Prefer getters/setters. <span class="cite">rust-guidelines.md:12–14</span></li>
+    <li><code>lib.rs</code> should contain <code>pub</code> re-exports for the crate's public types. <span class="cite">rust-guidelines.md:15</span></li>
+    <li><code>Cargo.toml</code>: restate-internal deps at the top, others after a blank line, sorted per block. <span class="cite">rust-guidelines.md:18</span></li>
+  </ul>
+</section>
+
+<section id="component-pattern">
+  <h2>The Restate component pattern</h2>
+  <p>You will see this shape over and over again. Internalize it before reading new code:</p>
+  <pre><code>// 1) Options — user-configurable, serdeable
+#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+pub struct Options { /* … */ }
+
+impl Options {
+    pub fn build(self) -&gt; Service { Service::new(self) }
+}
+
+// 2) Service — owns the event loop and its channels
+pub struct Service { /* tx + rx, state, … */ }
+
+impl Service {
+    pub fn handle(&amp;self) -&gt; Handle { /* cheap-to-clone */ }
+
+    pub async fn run(self, /* deps */, drain: drain::Watch) {
+        // listen on `drain` for graceful shutdown
+    }
+}
+
+// 3) Handle — the interaction surface; thin wrapper over a channel
+#[derive(Clone)]
+pub struct Handle { /* … */ }
+
+// 4) Error — thiserror + CodedError where appropriate
+#[derive(Debug, thiserror::Error, CodedError)]
+pub enum Error { /* … */ }</code></pre>
+  <p class="cite">docs/dev/rust-guidelines.md:36–70</p>
+  <p>When possible, split into <code>_api</code> (handle + error) and <code>_impl</code> (service). <code>restate-worker</code> + <code>restate-worker-api</code> and <code>restate-invoker-impl</code> are textbook examples. <span class="cite">crates/worker/src/lib.rs:58 imports restate_worker_api</span></p>
+</section>
+
+<section id="validation">
+  <h2>Pre-commit validation</h2>
+  <p>Before committing or amending, run (in roughly this order — fast feedback first):</p>
+  <pre><code>cargo check
+cargo nextest run --all-features
+cargo fmt --all -- --check
+cargo clippy --all-features --all-targets --workspace -- -D warnings
+
+# Only if you touched Cargo.toml / Cargo.lock:
+cargo deny --all-features check
+cargo hakari generate</code></pre>
+  <p class="cite">CLAUDE.md (Validation Before Committing Changes)</p>
+
+  <div class="callout warn">
+    <strong>If you rename a trait method, function signature, or public API,</strong> search the entire codebase for callers (<code>rg</code>, <code>grep</code>) and update them. The compiler will catch most of it, but generic bounds and feature-gated code can hide breaks. <span class="cite">CLAUDE.md (validation section)</span>
+  </div>
+</section>
+
+<section id="release-notes">
+  <h2>Release notes</h2>
+  <p>Behavior-changing PRs add a file under <code>release-notes/unreleased/</code> using the schema in <code>release-notes/README.md</code>. The file name pattern is <code>&lt;issue-number&gt;-&lt;short-description&gt;.md</code>; the body has sections: <em>What Changed</em>, <em>Why This Matters</em>, <em>Impact on Users</em>. <span class="cite">release-notes/README.md:20–40</span></p>
+  <p>Examples of recent in-flight entries (each is a real file you can read for tone):</p>
+  <ul>
+    <li><code>4519-fix-orphaned-jc-index-entries.md</code></li>
+    <li><code>4566-fix-awakeable-signal-loss-leader-transfer.md</code></li>
+    <li><code>4576-set-preferred-partition-leader.md</code></li>
+    <li><code>4354-invoker-memory-pool.md</code></li>
+  </ul>
+  <p class="cite">release-notes/unreleased/ listing</p>
+</section>
+
+<section id="perf">
+  <h2>Performance discipline</h2>
+  <p>Restate is a high-performance system. Correctness first; performance immediately after. Be especially careful in the latency-critical paths:</p>
+  <ul>
+    <li><strong>Bifrost</strong> — <code>crates/bifrost/</code></li>
+    <li><strong>Networking</strong> — <code>crates/core/src/network/</code></li>
+    <li><strong>restate-core</strong> — task center, metadata, partitions infra</li>
+    <li><strong>Partition processor state machine</strong> — <code>crates/worker/src/partition/state_machine/</code></li>
+    <li><strong>Invoker</strong> — <code>crates/invoker-impl/</code></li>
+  </ul>
+  <p class="cite">CLAUDE.md (Performance Notes)</p>
+
+  <h3>Allocation hygiene</h3>
+  <p>Prefer passing data by reference. Watch for:</p>
+  <ul>
+    <li><code>Vec</code> / <code>String</code> allocations in tight loops.</li>
+    <li>Cloning <code>Bifrost</code> handles is cheap (<code>Arc</code>), but cloning <code>InvocationRequest</code> bodies is not.</li>
+    <li>Use the niches: <code>Option&lt;NonZeroU32&gt;</code> instead of <code>u32 + sentinel</code>. <span class="cite">CLAUDE.md §7</span></li>
+  </ul>
+  <p>If you're unsure about an optimization's impact, write a Criterion micro-benchmark — that's the team's preferred way to settle these.</p>
+</section>
+
+<section id="tools">
+  <h2>Tools &amp; binaries</h2>
+  <div class="grid">
+    <div class="card"><h4>restate-server</h4><p>The actual server. Entry: <code>server/src/main.rs</code>. Uses jemalloc with profiling compiled in but inactive (toggle via <code>:5122/debug/heap/activate</code> or <code>MALLOC_CONF</code>).</p><span class="path">server/src/main.rs:47–57</span></div>
+    <div class="card"><h4>restate (CLI)</h4><p>Operator CLI. Style guide in <code>crates/cli-util/README.md</code>.</p><span class="path">cli/, crates/cli-util/</span></div>
+    <div class="card"><h4>restatectl</h4><p>Low-level control plane tooling.</p><span class="path">tools/restatectl/</span></div>
+    <div class="card"><h4>restate-doctor</h4><p>Diagnostics binary.</p><span class="path">tools/restate-doctor/</span></div>
+    <div class="card"><h4>xtask</h4><p>Repo automation (schema generation, OpenAPI generation, …).</p><span class="path">tools/xtask/</span></div>
+    <div class="card"><h4>mock-service-endpoint</h4><p>Stand-in SDK endpoint for tests.</p><span class="path">tools/mock-service-endpoint/</span></div>
+    <div class="card"><h4>bifrost-benchpress</h4><p>Bifrost throughput/latency benchmark.</p><span class="path">tools/bifrost-benchpress/</span></div>
+    <div class="card"><h4>logserver-bench</h4><p>Standalone log-server RocksDB benchmark. <em>Read its README before changing log-server.</em></p><span class="path">tools/logserver-bench/README.md</span></div>
+    <div class="card"><h4>pp-bench</h4><p>Partition-processor benchmark.</p><span class="path">tools/pp-bench/</span></div>
+    <div class="card"><h4>Wireshark dissector</h4><p>Service-protocol dissector for inspecting SDK ↔ runtime traffic.</p><span class="path">tools/service-protocol-wireshark-dissector/</span></div>
+  </div>
+</section>
+
+<section id="debug">
+  <h2>Debugging &amp; tracing</h2>
+  <p>The runtime emits OpenTelemetry traces and Prometheus metrics. To run Jaeger locally:</p>
+  <pre><code>docker run --rm -d -p16686:16686 -p4317:4317 \
+  -e COLLECTOR_OTLP_ENABLED=true --name jaeger \
+  jaegertracing/all-in-one:latest</code></pre>
+  <p class="cite">docs/dev/local-development.md:86–88</p>
+
+  <p>For wire-level debugging, set up Wireshark on loopback, decode the relevant ports as HTTP/2, and load the service-protocol proto contracts. <span class="cite">docs/dev/debug.md:12–20</span></p>
+
+  <p>Other helpful tools per the debug doc: <code>grpcurl</code> for sending requests, <code>docker</code>/<code>podman</code> for running SDK containers, a Rust debugger (CLion or rust-analyzer + lldb). <span class="cite">docs/dev/debug.md:5–9</span></p>
+
+  <h3>Memory profiling</h3>
+  <p>jemalloc heap profiling is compiled in on Linux but inactive by default. Activate at runtime by hitting <code>/debug/heap/activate</code> on the admin port (default 5122), or set <code>MALLOC_CONF</code>. <span class="cite">server/src/main.rs:53–57</span></p>
+</section>
+
+<section id="bench">
+  <h2>Benchmarks</h2>
+  <ul>
+    <li>Use <strong>Criterion</strong> for in-crate micro-benchmarks. Bifrost has <code>benches/</code> already.</li>
+    <li><code>tools/logserver-bench/</code> — RocksDB storage of the log-server: write throughput, mixed read/write/trim. The CLAUDE.md explicitly calls this out as the way to validate log-server changes. <span class="cite">CLAUDE.md (Benchmarking Tools)</span></li>
+    <li><code>tools/bifrost-benchpress/</code> and <code>tools/pp-bench/</code> exist for higher-level paths.</li>
+  </ul>
+</section>
+
+<section id="firstweek">
+  <h2>First-week plan</h2>
+  <h3>Monday — Get the toolchain green</h3>
+  <ul class="checklist">
+    <li>Install Rust (rustup), clang, cmake, OpenSSL dev headers, protoc, just.</li>
+    <li>Clone, then <code>just build --bin restate-server</code> end-to-end (expect long first build; cache via sccache after this). <span class="cite">docs/dev/local-development.md:47–55, 73–75</span></li>
+    <li><code>just build --bin restate</code> for the CLI.</li>
+    <li><code>just test</code> — must pass before you change anything.</li>
+    <li>Skim <code>CLAUDE.md</code> and <code>AGENTS.md</code>. They contain the non-obvious rules.</li>
+  </ul>
+
+  <h3>Tuesday — Read the developer docs</h3>
+  <ul class="checklist">
+    <li><code>docs/dev/development-guidelines.md</code> — PR / commit / merge conventions.</li>
+    <li><code>docs/dev/rust-guidelines.md</code> — the component pattern, naming, error design.</li>
+    <li><code>docs/dev/debug.md</code> — tracing, Wireshark.</li>
+    <li><code>docs/dev/bilrost-migration-guidelines.md</code> — how new messages should be defined.</li>
+    <li><code>release-notes/README.md</code> — the release-note schema.</li>
+    <li><code>crates/cli-util/README.md</code> — only if you'll be touching the CLI.</li>
+  </ul>
+
+  <h3>Wednesday — Trace one invocation end-to-end</h3>
+  <p>Start at <code>crates/ingress-http</code>, follow the path described in the architecture diagram. Tabs you'll want open simultaneously:</p>
+  <ul class="checklist">
+    <li><code>crates/worker/src/partition/mod.rs</code> (PartitionProcessor)</li>
+    <li><code>crates/worker/src/partition/state_machine/mod.rs</code> (StateMachine)</li>
+    <li><code>crates/wal-protocol/src/v1.rs</code> (Envelope/Command)</li>
+    <li><code>crates/bifrost/src/{bifrost,appender,read_stream}.rs</code></li>
+    <li><code>crates/invoker-impl/src/{lib,invocation_state_machine,invocation_task}.rs</code></li>
+  </ul>
+
+  <h3>Thursday — TaskCenter &amp; Bifrost deep-dive</h3>
+  <ul class="checklist">
+    <li>Read <code>crates/core/src/task_center/{handle,task,task_kind,builder,runtime,monitoring}.rs</code>.</li>
+    <li>Understand spawn semantics: <code>OnCancel</code> and <code>OnError</code> properties of task kinds. <span class="cite">task_kind.rs:46–67</span></li>
+    <li>Read <code>crates/bifrost/src/{bifrost,appender,read_stream,sealed_loglet}.rs</code>.</li>
+    <li>Look at one provider end-to-end: <code>providers/local_loglet/</code> is the simplest.</li>
+  </ul>
+
+  <h3>Friday — Run a local cluster, pick a starter task</h3>
+  <ul class="checklist">
+    <li>Use <code>crates/local-cluster-runner</code> to spin a multi-node setup. <span class="cite">Cargo.toml:65 (restate-local-cluster-runner)</span></li>
+    <li>Pick a small "good-first-issue" or grep <code>TODO/FIXME</code> in a hot path.</li>
+    <li>Submit a PR that follows the component pattern, validation steps, and release-notes rule.</li>
+  </ul>
+</section>
+
+<section id="first-pr">
+  <h2>Your first PR — a survival checklist</h2>
+  <ul class="checklist">
+    <li>One concern per PR. Small &gt; clever.</li>
+    <li>Imports in 4-stanza order, blank lines between stanzas. <span class="cite">CLAUDE.md §1</span></li>
+    <li>No <code>Configuration::pinned()</code> references held across <code>.await</code>. <span class="cite">CLAUDE.md §4</span></li>
+    <li><code>cargo check</code> &amp; <code>cargo nextest run --all-features</code> green.</li>
+    <li><code>cargo fmt --all -- --check</code> green.</li>
+    <li><code>cargo clippy --all-features --all-targets --workspace -- -D warnings</code> green.</li>
+    <li>If you touched <code>Cargo.toml</code>: <code>cargo deny --all-features check</code> + <code>cargo hakari generate</code>.</li>
+    <li>New / deprecated config keys carry <code>/// Since vX.Y.Z</code>.</li>
+    <li>Behavior change? Drop a file in <code>release-notes/unreleased/</code>.</li>
+    <li>Test new behavior. Pack multiple assertions per test; don't fragment into many small ones.</li>
+    <li>Commit messages: explain <em>why</em>, not just <em>what</em>. Follow existing repo style — they're usually a single line that reads like a sentence. <span class="cite">docs/dev/development-guidelines.md:23–27</span></li>
+    <li>Rebase onto latest <code>main</code>; the team merges via rebase. <span class="cite">docs/dev/development-guidelines.md:17–20</span></li>
+  </ul>
+</section>
+
+<section id="reading-order">
+  <h2>Recommended reading order — for permanent understanding</h2>
+  <ol>
+    <li><code>CLAUDE.md</code> &amp; <code>AGENTS.md</code> (yes, all of it).</li>
+    <li><code>docs/dev/</code> — every file.</li>
+    <li><code>crates/types/src/lib.rs</code>; then <code>identifiers.rs</code>, <code>logs/mod.rs</code>, <code>nodes_config.rs</code>, <code>config/mod.rs</code>.</li>
+    <li><code>crates/core/src/lib.rs</code>; then <code>task_center/</code> in full, then <code>network/mod.rs</code>.</li>
+    <li><code>crates/wal-protocol/src/v1.rs</code> — to memorize the <code>Command</code> enum.</li>
+    <li><code>crates/bifrost/src/lib.rs</code> then <code>bifrost.rs</code>, <code>appender.rs</code>, <code>read_stream.rs</code>, <code>service.rs</code>, <code>watchdog.rs</code>.</li>
+    <li><code>crates/worker/src/lib.rs</code>; then <code>partition/mod.rs</code>; then <code>partition/state_machine/mod.rs</code> (this one's a marathon — read in 3 sittings).</li>
+    <li><code>crates/invoker-impl/src/lib.rs</code> and the <code>invocation_state_machine.rs</code> alongside.</li>
+    <li><code>crates/partition-store/src/partition_store.rs</code> and one table impl of your choice.</li>
+    <li><code>crates/storage-query-datafusion</code> if you're curious about introspection.</li>
+  </ol>
+</section>
+
+<section id="cheatsheet">
+  <h2>Cheatsheet</h2>
+  <table>
+    <thead><tr><th>I want to…</th><th>Do this</th></tr></thead>
+    <tbody>
+      <tr><td>Run tests</td><td><code>just test</code> (or <code>cargo nextest run --workspace</code>)</td></tr>
+      <tr><td>Run lint</td><td><code>just lint</code> (fmt + clippy + deny)</td></tr>
+      <tr><td>Full verify</td><td><code>just verify</code> (lint + test + doctest)</td></tr>
+      <tr><td>Spawn a long-running task</td><td><code>TaskCenter::spawn_child(TaskKind::X, "name", fut)?</code> — pick the right kind for cancel/error semantics</td></tr>
+      <tr><td>Read current config</td><td><code>let cfg = Configuration::pinned();</code> — never hold across <code>.await</code></td></tr>
+      <tr><td>Subscribe to a Metadata kind</td><td><code>metadata.wait_for_version(MetadataKind::Schema, version).await</code> — see <code>worker/src/lib.rs:253</code></td></tr>
+      <tr><td>Append to a log</td><td>Get <code>Bifrost</code>, build an <code>InputRecord</code>, call the appender — see <code>crates/bifrost/src/appender.rs</code></td></tr>
+      <tr><td>Read a log</td><td><code>bifrost.create_reader(LogId, KeyFilter, start_lsn, ..)</code> — see <code>crates/bifrost/src/read_stream.rs</code></td></tr>
+      <tr><td>Print a byte count</td><td><code>ByteCount::from(n)</code> — never raw <code>{n} bytes</code></td></tr>
+      <tr><td>Hold a partition-key range</td><td><code>KeyRange</code> from <code>restate_types::sharding</code> — never <code>RangeInclusive&lt;PartitionKey&gt;</code></td></tr>
+      <tr><td>Get the current time</td><td><code>restate_clock::WallClock</code> — not <code>SystemTime::now()</code></td></tr>
+      <tr><td>Generate config schema docs</td><td><code>cargo xtask generate-config-schema &gt; restate_config_schema.json</code></td></tr>
+      <tr><td>Generate OpenAPI docs</td><td><code>cargo xtask generate-rest-api-doc &gt; openapi.json</code> then <code>npx @redocly/cli build-docs openapi.json</code></td></tr>
+      <tr><td>Profile</td><td><code>just flamegraph --bin restate-server</code></td></tr>
+      <tr><td>Local multi-node cluster</td><td>Use <code>restate-local-cluster-runner</code> from <code>crates/local-cluster-runner</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="links">
+  <h2>External links</h2>
+  <ul>
+    <li>Public docs: <a href="https://docs.restate.dev">docs.restate.dev</a></li>
+    <li>GitHub org: <a href="https://github.com/restatedev">github.com/restatedev</a></li>
+    <li>Repo: <a href="https://github.com/restatedev/restate">github.com/restatedev/restate</a></li>
+    <li>Discord and Slack invites: <span class="cite">README.md:86–93</span></li>
+    <li>Concepts: durable execution, invocations, services — linked from the README primitives list. <span class="cite">README.md:98–103</span></li>
+  </ul>
+</section>
+
+<footer>
+  Generated from a direct read of this workspace. Every citation above is anchored to a real file/line range. If something looks stale, the source of truth is always the code — fix it there first and update this doc afterward. Welcome aboard.
+</footer>
+
+</main>
+</div>
+</body>
+</html>
