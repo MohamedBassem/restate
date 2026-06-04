@@ -8,7 +8,7 @@
 // the Business Source License, use of this software will be governed
 // by the Apache License, Version 2.0.
 
-use std::num::{NonZero, NonZeroU8, NonZeroU32, NonZeroU64, NonZeroUsize};
+use std::num::{NonZeroU8, NonZeroU32, NonZeroU64, NonZeroUsize};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -957,8 +957,8 @@ pub struct SnapshotsOptions {
     ///
     /// Since v1.7.0
     #[cfg_attr(feature = "schemars", schemars(skip))]
-    #[serde(default = "default_num_retained")]
-    pub num_retained: NonZeroU8,
+    #[serde(flatten)]
+    pub num_retained: SnapshotsNumRetained,
 
     /// # Export concurrency limit
     ///
@@ -974,10 +974,6 @@ pub struct SnapshotsOptions {
     pub enable_cleanup: bool,
 }
 
-fn default_num_retained() -> NonZero<u8> {
-    NonZeroU8::new(1).unwrap()
-}
-
 impl Default for SnapshotsOptions {
     fn default() -> Self {
         Self {
@@ -986,7 +982,7 @@ impl Default for SnapshotsOptions {
             snapshot_interval_num_records: None,
             object_store: Default::default(),
             object_store_retry_policy: Self::default_retry_policy(),
-            num_retained: default_num_retained(),
+            num_retained: SnapshotsNumRetained::default(),
             export_concurrency_limit: None,
             #[cfg(any(test, feature = "test-util"))]
             enable_cleanup: true,
@@ -1055,6 +1051,68 @@ impl From<ThrottlingOptions> for gardal::Limit {
         }
 
         limit
+    }
+}
+
+/// A comptibility shim so that we can continue parsing the experimental flag name as well as the new one.
+/// NOTE: This must always be tagged with `#[serde(flatten)]`.
+#[derive(Debug, Clone)]
+pub struct SnapshotsNumRetained(NonZeroU8);
+
+impl SnapshotsNumRetained {
+    pub fn new(val: NonZeroU8) -> Self {
+        Self(val)
+    }
+
+    pub fn get(&self) -> NonZeroU8 {
+        self.0
+    }
+}
+
+impl Default for SnapshotsNumRetained {
+    fn default() -> Self {
+        Self(NonZeroU8::new(1).unwrap())
+    }
+}
+
+impl Serialize for SnapshotsNumRetained {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Always serialize the new name, even if the old name is present.
+        #[derive(Serialize)]
+        #[serde(rename_all = "kebab-case")]
+        struct Val {
+            num_retained: NonZeroU8,
+        }
+        Val {
+            num_retained: self.get(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SnapshotsNumRetained {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        struct Val {
+            num_retained: Option<NonZeroU8>,
+            experimental_num_retained: Option<NonZeroU8>,
+        }
+        let val = Val::deserialize(deserializer)?;
+        match (val.num_retained, val.experimental_num_retained) {
+            (Some(new), Some(legacy)) => Err(serde::de::Error::custom(format!(
+                "Found both `num_retained` and `experimental_num_retained` fields. Please use only one of them. Found: `num_retained`: {new:?}, `experimental_num_retained`: {legacy:?}"
+            ))),
+            (Some(num_retained), _) => Ok(Self(num_retained)),
+            (_, Some(num_retained)) => Ok(Self(num_retained)),
+            (None, None) => Ok(Self::default()),
+        }
     }
 }
 
@@ -1154,6 +1212,49 @@ mod tests {
         assert_eq!(
             new.request_identity_private_key_pem_file.as_deref(),
             Some(Path::new("/key.pem"))
+        );
+    }
+
+    #[test]
+    fn snapshots_num_retained() {
+        #[derive(Serialize, Deserialize)]
+        struct Test {
+            #[serde(flatten)]
+            input: SnapshotsNumRetained,
+        }
+
+        assert_eq!(
+            toml::from_str::<Test>(
+                r#"
+                num-retained = 10
+            "#
+            )
+            .unwrap()
+            .input
+            .get(),
+            NonZeroU8::new(10).unwrap()
+        );
+
+        assert_eq!(
+            toml::from_str::<Test>(
+                r#"
+                experimental-num-retained = 5
+            "#
+            )
+            .unwrap()
+            .input
+            .get(),
+            NonZeroU8::new(5).unwrap()
+        );
+
+        assert!(
+            toml::from_str::<Test>(
+                r#"
+                experimental-num-retained = 5
+                num-retained = 10
+            "#
+            )
+            .is_err()
         );
     }
 }

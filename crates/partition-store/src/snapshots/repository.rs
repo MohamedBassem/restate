@@ -335,7 +335,7 @@ impl SnapshotRepository {
             destination,
             prefix: ObjectPath::from(prefix),
             staging_dir,
-            num_retained: snapshots_options.num_retained,
+            num_retained: snapshots_options.num_retained.get(),
             #[cfg(any(test, feature = "test-util"))]
             enable_cleanup: snapshots_options.enable_cleanup,
         }))
@@ -1132,7 +1132,7 @@ mod tests {
     use restate_clock::time::MillisSinceEpoch;
     use restate_core::{Metadata, TestCoreEnv};
     use restate_object_store_util::create_object_store_client;
-    use restate_types::config::{ObjectStoreOptions, SnapshotsOptions};
+    use restate_types::config::{ObjectStoreOptions, SnapshotsNumRetained, SnapshotsOptions};
     use restate_types::identifiers::{PartitionId, SnapshotId};
     use restate_types::logs::{LogId, Lsn, SequenceNumber};
     use restate_types::retries::RetryPolicy;
@@ -1400,7 +1400,7 @@ mod tests {
 
         let opts = SnapshotsOptions {
             destination: Some(destination.clone()),
-            num_retained: std::num::NonZeroU8::new(3).unwrap(),
+            num_retained: SnapshotsNumRetained::new(std::num::NonZeroU8::new(3).unwrap()),
             ..SnapshotsOptions::default()
         };
 
@@ -1484,7 +1484,7 @@ mod tests {
 
         let opts = SnapshotsOptions {
             destination: Some(destination.clone()),
-            num_retained: std::num::NonZeroU8::new(2).unwrap(),
+            num_retained: SnapshotsNumRetained::new(std::num::NonZeroU8::new(2).unwrap()),
             ..SnapshotsOptions::default()
         };
 
@@ -1559,7 +1559,7 @@ mod tests {
 
         let opts = SnapshotsOptions {
             destination: Some(destination.clone()),
-            num_retained: std::num::NonZeroU8::new(3).unwrap(),
+            num_retained: SnapshotsNumRetained::new(std::num::NonZeroU8::new(3).unwrap()),
             ..SnapshotsOptions::default()
         };
 
@@ -1611,7 +1611,7 @@ mod tests {
 
         let opts = SnapshotsOptions {
             destination: Some(destination.clone()),
-            num_retained: std::num::NonZeroU8::new(3).unwrap(),
+            num_retained: SnapshotsNumRetained::new(std::num::NonZeroU8::new(3).unwrap()),
             enable_cleanup: true,
             ..SnapshotsOptions::default()
         };
