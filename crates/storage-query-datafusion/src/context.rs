@@ -13,6 +13,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use restate_types::config::Configuration;
 use tokio::sync::watch;
 use tracing::warn;
 
@@ -345,6 +346,7 @@ impl RegisterTable for ClusterTables {
     async fn register(&self, ctx: &QueryContext) -> Result<(), BuildError> {
         let metadata = Metadata::current();
         crate::node::register_self(ctx, metadata.clone(), self.cluster_state.clone())?;
+        crate::configs::register_self(ctx, Configuration::live())?;
         crate::partition::register_self(ctx, metadata.clone(), self.replica_set_states.clone())?;
         crate::partition_replica_set::register_self(
             ctx,
