@@ -51,11 +51,6 @@ where
     }
 
     #[inline]
-    pub(super) fn partition_sender(&self) -> &mpsc::Sender<FencedEffect> {
-        &self.output_tx
-    }
-
-    #[inline]
     pub(super) fn resolve_invocation(
         &mut self,
         invocation_id: &InvocationId,
@@ -101,10 +96,10 @@ where
     pub(super) fn remove_invocation(
         &mut self,
         invocation_id: &InvocationId,
-    ) -> Option<(&mpsc::Sender<FencedEffect>, &SR, InvocationStateMachine)> {
+    ) -> Option<(mpsc::Sender<FencedEffect>, &SR, InvocationStateMachine)> {
         self.invocation_state_machines
             .remove(invocation_id)
-            .map(|ism| (&self.output_tx, &self.storage_reader, ism))
+            .map(|ism| (self.output_tx.clone(), &self.storage_reader, ism))
     }
 
     #[inline]

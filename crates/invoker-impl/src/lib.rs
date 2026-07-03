@@ -1341,13 +1341,14 @@ where
         error: InvokerError,
         returned_budget: LocalMemoryPool,
     ) {
-        if let Some((_, _, mut ism)) = self
+        if let Some((sender, _, mut ism)) = self
             .invocation_state_machine_manager
             .remove_invocation(&invocation_id)
         {
             // Stash the budget on the ISM so it can be reused if we retry.
             ism.budget = Some(returned_budget);
-            self.handle_error_event(invocation_id, error, ism).await;
+            self.handle_error_event(invocation_id, error, sender, ism)
+                .await;
         } else {
             // If no state machine, this might be a result for an aborted invocation.
             trace!("No state machine found for invocation task error signal");
@@ -1379,8 +1380,13 @@ where
                     // this error is classified as non-transient.
                     budget.release_excess();
                     ism.budget = Some(budget);
-                    self.handle_error_event(invocation_id, InvokerError::OutOfMemory(oom), ism)
-                        .await;
+                    self.handle_error_event(
+                        invocation_id,
+                        InvokerError::OutOfMemory(oom),
+                        sender,
+                        ism,
+                    )
+                    .await;
                 }
                 OutOfMemoryKind::PoolExhausted => {
                     // Global pool exhausted — yielding may help because freeing
@@ -1419,8 +1425,13 @@ where
                         // Yield flag disabled: fall back to retry.
                         budget.release_excess();
                         ism.budget = Some(budget);
-                        self.handle_error_event(invocation_id, InvokerError::OutOfMemory(oom), ism)
-                            .await;
+                        self.handle_error_event(
+                            invocation_id,
+                            InvokerError::OutOfMemory(oom),
+                            sender,
+                            ism,
+                        )
+                        .await;
                     }
                 }
             }
@@ -1558,6 +1569,7 @@ where
         &mut self,
         invocation_id: InvocationId,
         error: InvokerError,
+        sender: mpsc::Sender<FencedEffect>,
         mut ism: InvocationStateMachine,
     ) {
         let attempt_deployment_id = ism.attempt_deployment_id();
@@ -1636,9 +1648,7 @@ where
 
                 // Some trivial deduplication here: if we already sent this transient error in the previous retry, don't send it again
                 if ism.should_emit_transient_error_event(&event) {
-                    let _ = self
-                        .invocation_state_machine_manager
-                        .partition_sender()
+                    let _ = sender
                         .send(fence(
                             ism.fencing_token,
                             Effect {
@@ -1717,9 +1727,7 @@ where
 
                 self.status_store.on_end(&invocation_id);
 
-                let _ = self
-                    .invocation_state_machine_manager
-                    .partition_sender()
+                let _ = sender
                     .send(fence(
                         ism.fencing_token,
                         Effect {
@@ -1785,9 +1793,7 @@ where
                     }),
                 };
 
-                let _ = self
-                    .invocation_state_machine_manager
-                    .partition_sender()
+                let _ = sender
                     .send(fence(
                         ism.fencing_token,
                         Effect {
@@ -1814,9 +1820,7 @@ where
                     "Error when executing the invocation, not going to retry.");
                 self.status_store.on_end(&invocation_id);
 
-                let _ = self
-                    .invocation_state_machine_manager
-                    .partition_sender()
+                let _ = sender
                     .send(fence(
                         ism.fencing_token,
                         Effect {
