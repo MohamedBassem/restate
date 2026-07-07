@@ -7864,6 +7864,7 @@ dependencies = [
  "pin-project-lite",
  "restate-test-util",
  "restate-workspace-hack",
+ "slab",
  "test-log",
  "thiserror 2.0.18",
  "tokio",

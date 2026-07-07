@@ -19,6 +19,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
+slab = { workspace = true }
 
 [dev-dependencies]
 restate-test-util = { workspace = true }
