@@ -39,6 +39,9 @@ use tracing::{debug, trace, warn};
 
 use restate_core::cancellation_token;
 use restate_errors::warn_it;
+use restate_futures_util::fair_lane_queue::{
+    FairLaneHandle, LaneSender, RoundRobinLaneScheduler, RoundRobinScheduler,
+};
 use restate_memory::{ByteCount, LocalMemoryPool, MemoryLease, MemoryPool, OutOfMemoryKind};
 use restate_queue::SegmentQueue;
 use restate_service_client::{AssumeRoleCacheMode, ServiceClient};
@@ -90,6 +93,12 @@ pub use input_command::InvokerHandle;
 use restate_types::LimitKey;
 use restate_util_string::ReString;
 
+pub type InvocationOutputQueue = RoundRobinLaneScheduler<InvocationTaskOutput, InvocationId>;
+pub type InvocationOutputQueueHandle =
+    FairLaneHandle<InvocationTaskOutput, InvocationId, RoundRobinScheduler>;
+pub type InvocationOutputQueueSender =
+    LaneSender<InvocationTaskOutput, InvocationId, RoundRobinScheduler>;
+
 /// Tags an [`Effect`] with the fencing token of the attempt that produced it (`ism.fencing_token`).
 ///
 /// The partition processor checks the token against its in-memory `fencing_tokens` map before
@@ -127,7 +136,7 @@ trait InvocationTaskRunner<SR> {
         idempotency_key: Option<ReString>,
         retry_count_since_last_stored_entry: u32,
         storage_reader: SR,
-        invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+        invoker_tx: InvocationOutputQueueSender,
         invoker_rx: mpsc::UnboundedReceiver<Notification>,
         task_pool: &mut JoinSet<()>,
         budget: LocalMemoryPool,
@@ -158,7 +167,7 @@ where
         idempotency_key: Option<ReString>,
         retry_count_since_last_stored_entry: u32,
         storage_reader: IR,
-        invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+        invoker_tx: InvocationOutputQueueSender,
         invoker_rx: mpsc::UnboundedReceiver<Notification>,
         task_pool: &mut JoinSet<()>,
         budget: LocalMemoryPool,
@@ -266,7 +275,8 @@ impl<StorageReader, TEntryEnricher, Schemas> Service<StorageReader, TEntryEnrich
 
         let (input_tx, input_rx) = mpsc::unbounded_channel();
         let (status_tx, status_rx) = mpsc::unbounded_channel();
-        let (invocation_tasks_tx, invocation_tasks_rx) = mpsc::unbounded_channel();
+        let scheduler = RoundRobinScheduler::new();
+        let queue = InvocationOutputQueue::new(scheduler);
 
         Self {
             input_tx,
@@ -275,8 +285,8 @@ impl<StorageReader, TEntryEnricher, Schemas> Service<StorageReader, TEntryEnrich
             inner: ServiceInner {
                 input_rx,
                 status_rx,
-                invocation_tasks_tx,
-                invocation_tasks_rx,
+                invocation_tasks_handle: queue.handle(),
+                invocation_tasks_rx: queue,
                 invocation_task_runner: DefaultInvocationTaskRunner {
                     client,
                     entry_enricher,
@@ -436,8 +446,8 @@ struct ServiceInner<InvocationTaskRunner, Schemas, StorageReader> {
     >,
 
     // Channel to communicate with invocation tasks
-    invocation_tasks_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
-    invocation_tasks_rx: mpsc::UnboundedReceiver<InvocationTaskOutput>,
+    invocation_tasks_handle: InvocationOutputQueueHandle,
+    invocation_tasks_rx: InvocationOutputQueue,
 
     // Invocation task factory
     invocation_task_runner: InvocationTaskRunner,
@@ -550,7 +560,7 @@ where
             memory_lease = self.memory_pool.reserve(initial_invocation_memory), if !segmented_input_queue.inner().is_empty() && self.pending_memory_lease.is_none() => {
                 self.pending_memory_lease = Some(memory_lease);
             }
-            Some(invocation_task_msg) = self.invocation_tasks_rx.recv() => {
+            Some(invocation_task_msg) = self.invocation_tasks_rx.next() => {
                 let InvocationTaskOutput {
                     invocation_id,
                     fencing_token,
@@ -1894,7 +1904,7 @@ where
             ism.idempotency_key.clone(),
             ism.start_message_retry_count_since_last_stored_command,
             storage_reader,
-            self.invocation_tasks_tx.clone(),
+            self.invocation_tasks_handle.open_lane(invocation_id),
             completions_rx,
             &mut self.invocation_tasks,
             budget,
@@ -2035,14 +2045,15 @@ mod tests {
         ) {
             let (input_tx, input_rx) = mpsc::unbounded_channel();
             let (status_tx, status_rx) = mpsc::unbounded_channel();
-            let (invocation_tasks_tx, invocation_tasks_rx) = mpsc::unbounded_channel();
             let (output_tx, output_rx) = mpsc::channel(1024);
+            let scheduler = RoundRobinScheduler::new();
+            let queue = InvocationOutputQueue::new(scheduler);
 
             let service_inner = Self {
                 input_rx,
                 status_rx,
-                invocation_tasks_tx,
-                invocation_tasks_rx,
+                invocation_tasks_handle: queue.handle(),
+                invocation_tasks_rx: queue,
                 invocation_task_runner,
                 schemas: Live::from_value(schemas),
                 invocation_tasks: Default::default(),
@@ -2103,7 +2114,7 @@ mod tests {
             InvocationId,
             InvocationTarget,
             IR,
-            mpsc::UnboundedSender<InvocationTaskOutput>,
+            InvocationOutputQueueSender,
             mpsc::UnboundedReceiver<Notification>,
         ) -> Fut,
         IR: InvocationReader + Clone + Send + Sync + 'static,
@@ -2119,7 +2130,7 @@ mod tests {
             _idempotency_key: Option<ReString>,
             _retry_count_since_last_stored_entry: u32,
             storage_reader: IR,
-            invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+            invoker_tx: InvocationOutputQueueSender,
             invoker_rx: mpsc::UnboundedReceiver<Notification>,
             task_pool: &mut JoinSet<()>,
             _budget: LocalMemoryPool,
@@ -2153,7 +2164,7 @@ mod tests {
             _idempotency_key: Option<ReString>,
             _retry_count_since_last_stored_entry: u32,
             _storage_reader: SR,
-            _invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+            _invoker_tx: InvocationOutputQueueSender,
             _invoker_rx: mpsc::UnboundedReceiver<Notification>,
             task_pool: &mut JoinSet<()>,
             _budget: LocalMemoryPool,
@@ -2176,7 +2187,7 @@ mod tests {
             _idempotency_key: Option<ReString>,
             _retry_count_since_last_stored_entry: u32,
             _storage_reader: SR,
-            _invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+            _invoker_tx: InvocationOutputQueueSender,
             _invoker_rx: mpsc::UnboundedReceiver<Notification>,
             task_pool: &mut JoinSet<()>,
             _budget: LocalMemoryPool,
@@ -2436,7 +2447,7 @@ mod tests {
             |invocation_id,
              _service_id,
              _storage_reader,
-             invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+             invoker_tx: InvocationOutputQueueSender,
              _| {
                 let _ = invoker_tx.send(InvocationTaskOutput {
                     invocation_id,
@@ -2470,7 +2481,7 @@ mod tests {
         );
 
         // We should receive the new entry here
-        let invoker_effect = service_inner.invocation_tasks_rx.recv().await.unwrap();
+        let invoker_effect = service_inner.invocation_tasks_rx.next().await.unwrap();
         assert_eq!(invoker_effect.invocation_id, invocation_id);
         check!(let InvocationTaskOutputInner::NewEntry { .. } = invoker_effect.inner);
 

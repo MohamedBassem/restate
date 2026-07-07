@@ -53,10 +53,10 @@ use restate_worker_api::invoker::invocation_reader::{
 use restate_worker_api::invoker::{EntryEnricher, InvocationReaderError};
 
 use super::Notification;
-use crate::TokenBucket;
 use crate::error::{InvocationMemoryExhausted, InvokerError};
 use crate::invocation_task::service_protocol_runner::ServiceProtocolRunner;
 use crate::metric_definitions::{INVOKER_EAGER_STATE_TRUNCATED, INVOKER_TASK_DURATION};
+use crate::{InvocationOutputQueueSender, TokenBucket};
 
 // Clippy false positive, might be caused by Bytes contained within HeaderValue.
 // https://github.com/rust-lang/rust/issues/40543#issuecomment-1212981256
@@ -274,7 +274,7 @@ pub(super) struct InvocationTask<EE, DMR> {
     // Invoker tx/rx
     entry_enricher: EE,
     schemas: Live<DMR>,
-    invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+    invoker_tx: InvocationOutputQueueSender,
     invoker_rx: mpsc::UnboundedReceiver<Notification>,
 
     // throttling
@@ -355,7 +355,7 @@ where
         retry_count_since_last_stored_entry: u32,
         entry_enricher: EE,
         deployment_metadata_resolver: Live<Schemas>,
-        invoker_tx: mpsc::UnboundedSender<InvocationTaskOutput>,
+        invoker_tx: InvocationOutputQueueSender,
         invoker_rx: mpsc::UnboundedReceiver<Notification>,
         action_token_bucket: Option<TokenBucket>,
         limit_key: LimitKey<ReString>,
@@ -613,12 +613,17 @@ where
 
 impl<EE, Schemas> InvocationTask<EE, Schemas> {
     /// Send a non-terminal message to the invoker main loop.
-    pub(crate) fn send_invoker_tx(&self, invocation_task_output_inner: InvocationTaskOutputInner) {
-        let _ = self.invoker_tx.send(InvocationTaskOutput {
-            invocation_id: self.invocation_id,
-            fencing_token: self.fencing_token,
-            inner: invocation_task_output_inner,
-        });
+    pub(crate) async fn send_invoker_tx(
+        &self,
+        invocation_task_output_inner: InvocationTaskOutputInner,
+    ) {
+        self.invoker_tx
+            .send(InvocationTaskOutput {
+                invocation_id: self.invocation_id,
+                fencing_token: self.fencing_token,
+                inner: invocation_task_output_inner,
+            })
+            .await;
     }
 }
 

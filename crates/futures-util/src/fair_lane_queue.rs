@@ -356,6 +356,8 @@ enum RoundRobinSchedulerStatus {
     Ready,
 }
 
+pub type RoundRobinLaneScheduler<T, Id> = FairLaneQueue<T, Id, RoundRobinScheduler>;
+
 pub struct RoundRobinScheduler {
     items: Vec<RoundRobinSchedulerStatus>,
     queue: VecDeque<usize>,
