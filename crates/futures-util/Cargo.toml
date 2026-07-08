@@ -34,9 +34,5 @@ tracing-test = { workspace = true }
 name = "waiter_queue"
 harness = false
 
-[[bench]]
-name = "fair_lane_queue"
-harness = false
-
 [lints]
 workspace = true

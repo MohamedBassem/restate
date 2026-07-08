@@ -355,7 +355,7 @@ where
                             return TerminalLoopState::Failed(InvokerError::Sdk(SdkInvocationError::unknown()));
                         }
                         Some(ResponseChunk::Parts(headers)) => {
-                            crate::shortcircuit!(self.handle_response_headers(headers));
+                            crate::shortcircuit!(self.handle_response_headers(headers).await);
                         }
                         Some(ResponseChunk::Data(_)) => {
                             panic!("Unexpected poll after the headers have been resolved already")
@@ -459,8 +459,8 @@ where
                         None => {
                             return TerminalLoopState::Failed(InvokerError::Sdk(SdkInvocationError::unknown()));
                         }
-                        Some(ResponseChunk::Parts(parts)) => crate::shortcircuit!(self.handle_response_headers(parts)),
-                        Some(ResponseChunk::Data(buf)) => crate::shortcircuit!(self.handle_read(parent_span_context, buf)),
+                        Some(ResponseChunk::Parts(parts)) => crate::shortcircuit!(self.handle_response_headers(parts).await),
+                        Some(ResponseChunk::Data(buf)) => crate::shortcircuit!(self.handle_read(parent_span_context, buf).await),
                     }
                 },
                 _ = release_interval.tick() => {
@@ -491,8 +491,8 @@ where
                         None => {
                             return TerminalLoopState::Failed(InvokerError::Sdk(SdkInvocationError::unknown()));
                         }
-                        Some(ResponseChunk::Parts(parts)) => crate::shortcircuit!(self.handle_response_headers(parts)),
-                        Some(ResponseChunk::Data(buf)) => crate::shortcircuit!(self.handle_read(parent_span_context, buf)),
+                        Some(ResponseChunk::Parts(parts)) => crate::shortcircuit!(self.handle_response_headers(parts).await),
+                        Some(ResponseChunk::Data(buf)) => crate::shortcircuit!(self.handle_read(parent_span_context, buf).await),
                     }
                 },
                 _ = tokio::time::sleep(self.invocation_task.abort_timeout) => {
@@ -568,7 +568,7 @@ where
         Ok(())
     }
 
-    fn handle_response_headers(
+    async fn handle_response_headers(
         &mut self,
         mut parts: http::response::Parts,
     ) -> Result<(), InvokerError> {
@@ -620,12 +620,13 @@ where
                         .map_err(|e| InvokerError::BadHeader(X_RESTATE_SERVER, e))?
                         .to_owned(),
                 ))
+                .await;
         }
 
         Ok(())
     }
 
-    fn handle_read(
+    async fn handle_read(
         &mut self,
         parent_span_context: &ServiceInvocationSpanContext,
         buf: Bytes,
@@ -633,13 +634,16 @@ where
         self.decoder.push(buf);
 
         while let Some((frame_header, frame)) = crate::shortcircuit!(self.decoder.consume_next()) {
-            crate::shortcircuit!(self.handle_message(parent_span_context, frame_header, frame));
+            crate::shortcircuit!(
+                self.handle_message(parent_span_context, frame_header, frame)
+                    .await
+            );
         }
 
         TerminalLoopState::Continue(())
     }
 
-    fn handle_message(
+    async fn handle_message(
         &mut self,
         parent_span_context: &ServiceInvocationSpanContext,
         mh: MessageHeader,
@@ -713,7 +717,8 @@ where
                         requires_ack: mh
                             .requires_ack()
                             .expect("All entry messages support requires_ack"),
-                    });
+                    })
+                    .await;
                 self.next_journal_index += 1;
                 TerminalLoopState::Continue(())
             }

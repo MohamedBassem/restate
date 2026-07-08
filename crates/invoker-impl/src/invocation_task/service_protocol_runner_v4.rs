@@ -78,7 +78,7 @@ use crate::invocation_task::{
 use crate::metric_definitions::{
     INVOKER_CLIENT_REQUESTS, INVOKER_RECEIVED_BYTES, INVOKER_SENT_BYTES,
 };
-use crate::{Notification, shortcircuit};
+use crate::{InvocationOutputPermit, InvocationOutputQueueSender, Notification, shortcircuit};
 
 ///  Provides the value of the invocation id
 const INVOCATION_ID_HEADER_NAME: HeaderName = HeaderName::from_static("x-restate-invocation-id");
@@ -316,6 +316,7 @@ where
         S: Stream<Item = Result<DecoderStreamItem, InvokerError>> + Unpin,
         IR: InvocationReader,
     {
+        let invoker_tx = self.invocation_task.invoker_tx.clone();
         let journal_size = journal_metadata.length;
         // === Replay phase (transaction alive) ===
         {
@@ -360,6 +361,7 @@ where
                 self.replay_loop(
                     &mut http_stream_tx,
                     decoder_stream,
+                    &invoker_tx,
                     journal_stream,
                     journal_metadata.length
                 )
@@ -383,6 +385,7 @@ where
                 self.bidi_stream_loop(
                     http_stream_tx,
                     decoder_stream,
+                    &invoker_tx,
                     invocation_reader,
                     // The bidi stream loop will never read from a journal v1 as it will be migrated
                     // by the time the bidi stream loop needs to read notifications from it.
@@ -405,7 +408,7 @@ where
         // We don't have the invoker_rx, so we simply consume the response
         trace!("Sender side of the request has been dropped, now processing the response");
 
-        self.response_stream_loop(decoder_stream, attempt_span)
+        self.response_stream_loop(decoder_stream, &invoker_tx, attempt_span)
             .await
     }
 
@@ -489,6 +492,7 @@ where
         &mut self,
         http_stream_tx: &mut InvokerBodySender,
         http_stream_rx: &mut S,
+        invoker_tx: &InvocationOutputQueueSender,
         journal_stream: JournalStream,
         expected_entries_count: u32,
     ) -> TerminalLoopState<()>
@@ -512,7 +516,13 @@ where
                             return TerminalLoopState::Failed(InvokerError::SdkV2(SdkInvocationErrorV2::unknown()))
                         },
                         Some(DecoderStreamItem::Parts(headers)) => {
-                            shortcircuit!(self.handle_response_headers(headers));
+                            // Rare, single message. Awaiting inline is fine here: the send
+                            // future lives only for this statement, so it never overlaps the
+                            // `&mut self` used by the journal-push arm. Worst case it briefly
+                            // pauses journal pushing while the output queue drains.
+                            if let Some(output) = shortcircuit!(self.handle_response_headers(headers)) {
+                                invoker_tx.send(self.invocation_task.make_output(output)).await;
+                            }
                         }
                         Some(DecoderStreamItem::Message(_, _)) => {
                             panic!("Unexpected poll after the headers have been resolved already")
@@ -569,10 +579,12 @@ where
     }
 
     /// This loop concurrently reads the http response stream and journal completions from the invoker.
+    #[allow(clippy::too_many_arguments)]
     async fn bidi_stream_loop<S, IR>(
         &mut self,
         mut http_stream_tx: InvokerBodySender,
         http_stream_rx: &mut S,
+        invoker_tx: &InvocationOutputQueueSender,
         mut invocation_reader: IR,
         journal_kind: JournalKind,
         outbound_budget: &mut LocalMemoryPool,
@@ -586,8 +598,20 @@ where
         release_interval.tick().await; // consume initial immediate tick
         let mut inactivity_timeout =
             std::pin::pin!(tokio::time::sleep(self.invocation_task.inactivity_timeout));
+
+        // At most one output awaiting placement into the invoker output queue. While we hold a
+        // permit we stop reading new SDK messages (the only source of new outputs), but keep
+        // forwarding completions to the SDK and servicing the timers. `permit` borrows the local
+        // `invoker_tx` clone (not `self`), so it can live across iterations without conflicting
+        // with the `&mut self` used by the other arms.
+        let mut permit: Option<InvocationOutputPermit<'_>> = None;
         loop {
             tokio::select! {
+                // Reserve the lane's slot when we don't hold one. This is the backpressure point:
+                // it resolves once the invoker main loop has drained our previous output.
+                reserved = invoker_tx.reserve(), if permit.is_none() => {
+                    permit = Some(reserved);
+                },
                 opt_completion = self.invocation_task.invoker_rx.recv() => {
                     match opt_completion {
                         Some(Notification::Entry(entry_index)) => {
@@ -638,15 +662,24 @@ where
 
                     inactivity_timeout.as_mut().reset(tokio::time::Instant::now() + self.invocation_task.inactivity_timeout);
                 },
-                chunk = http_stream_rx.next() => {
-                    match shortcircuit!(chunk.transpose()) {
+                // Only pull the next SDK message once we hold a permit to place its output.
+                // A message that produces no output keeps the permit for the next one.
+                chunk = http_stream_rx.next(), if permit.is_some() => {
+                    let output = match shortcircuit!(chunk.transpose()) {
                         None => {
                             return TerminalLoopState::Failed(InvokerError::SdkV2(SdkInvocationErrorV2::unknown()));
                         }
                         Some(DecoderStreamItem::Parts(parts)) => shortcircuit!(self.handle_response_headers(parts)),
                         Some(DecoderStreamItem::Message(message_header, message)) => {
-                            shortcircuit!(self.handle_message(message_header, message, attempt_span));
+                            shortcircuit!(self.handle_message(message_header, message, attempt_span))
                         }
+                    };
+                    if let Some(output) = output {
+                        // Synchronous, infallible: the slot was reserved above.
+                        permit
+                            .take()
+                            .expect("permit is held while reading")
+                            .send(self.invocation_task.make_output(output));
                     }
 
                     inactivity_timeout.as_mut().reset(tokio::time::Instant::now() + self.invocation_task.inactivity_timeout);
@@ -667,25 +700,38 @@ where
     async fn response_stream_loop<S>(
         &mut self,
         http_stream_rx: &mut S,
+        invoker_tx: &InvocationOutputQueueSender,
         attempt_span: &mut ServiceSpan,
     ) -> TerminalLoopState<()>
     where
         S: Stream<Item = Result<DecoderStreamItem, InvokerError>> + Unpin,
     {
+        // Same permit-gated scheme as `bidi_stream_loop`: hold a reservation before reading the
+        // next message, so a backpressured output queue never blocks the loop and the
+        // abort timeout keeps ticking. There is no completion channel to service here.
+        let mut permit: Option<InvocationOutputPermit<'_>> = None;
         loop {
             tokio::select! {
-                chunk = http_stream_rx.next() => {
-                    // don't read again until all buffered messages has been consumed
-                    // to force a back pressure on the read stream
-
-                    match shortcircuit!(chunk.transpose()) {
+                reserved = invoker_tx.reserve(), if permit.is_none() => {
+                    permit = Some(reserved);
+                },
+                // don't read again until we hold a permit for the output, forcing
+                // back pressure on the read stream
+                chunk = http_stream_rx.next(), if permit.is_some() => {
+                    let output = match shortcircuit!(chunk.transpose()) {
                         None => {
                             return TerminalLoopState::Failed(InvokerError::SdkV2(SdkInvocationErrorV2::unknown()));
                         }
                         Some(DecoderStreamItem::Parts(parts)) => shortcircuit!(self.handle_response_headers(parts)),
                         Some(DecoderStreamItem::Message(message_header, message)) => {
-                            shortcircuit!(self.handle_message(message_header, message, attempt_span));
+                            shortcircuit!(self.handle_message(message_header, message, attempt_span))
                         }
+                    };
+                    if let Some(output) = output {
+                        permit
+                            .take()
+                            .expect("permit is held while reading")
+                            .send(self.invocation_task.make_output(output));
                     }
                 },
                 _ = tokio::time::sleep(self.invocation_task.abort_timeout) => {
@@ -837,7 +883,7 @@ where
     fn handle_response_headers(
         &mut self,
         mut parts: http::response::Parts,
-    ) -> Result<(), InvokerError> {
+    ) -> Result<Option<InvocationTaskOutputInner>, InvokerError> {
         // if service is running behind a gateway, the service can be down
         // but we still get a response code from the gateway itself. In that
         // case we still need to return the proper error
@@ -894,15 +940,14 @@ where
         }
 
         if let Some(hv) = parts.headers.remove(X_RESTATE_SERVER) {
-            self.invocation_task
-                .send_invoker_tx(InvocationTaskOutputInner::ServerHeaderReceived(
-                    hv.to_str()
-                        .map_err(|e| InvokerError::BadHeader(X_RESTATE_SERVER, e))?
-                        .to_owned(),
-                ))
+            return Ok(Some(InvocationTaskOutputInner::ServerHeaderReceived(
+                hv.to_str()
+                    .map_err(|e| InvokerError::BadHeader(X_RESTATE_SERVER, e))?
+                    .to_owned(),
+            )));
         }
 
-        Ok(())
+        Ok(None)
     }
 
     fn handle_new_command(
@@ -911,7 +956,7 @@ where
         command: RawCommand,
         attempt_span: &mut ServiceSpan,
         cmd_name: Option<String>,
-    ) {
+    ) -> TerminalLoopState<Option<InvocationTaskOutputInner>> {
         if attempt_span.is_recording() {
             let mut attributes = vec![KeyValue::new(
                 restate_tracing_instrumentation::semconv::attribute::RESTATE_JOURNAL_COMMAND_TYPE,
@@ -931,15 +976,15 @@ where
                 attributes
             );
         }
-        self.invocation_task
-            .send_invoker_tx(InvocationTaskOutputInner::NewCommand {
-                command_index: self.command_index,
-                requested_ack: mh
-                    .requested_ack()
-                    .expect("All command messages support requested_ack"),
-                command,
-            });
+        let output = InvocationTaskOutputInner::NewCommand {
+            command_index: self.command_index,
+            requested_ack: mh
+                .requested_ack()
+                .expect("All command messages support requested_ack"),
+            command,
+        };
         self.command_index += 1;
+        TerminalLoopState::Continue(Some(output))
     }
 
     fn handle_message(
@@ -947,7 +992,7 @@ where
         mh: MessageHeader,
         message: Message,
         attempt_span: &mut ServiceSpan,
-    ) -> TerminalLoopState<()> {
+    ) -> TerminalLoopState<Option<InvocationTaskOutputInner>> {
         trace!(
             restate.protocol.message_header = ?mh,
             restate.protocol.message = ?message.proto_debug(),
@@ -964,9 +1009,11 @@ where
             Message::ProposeRunCompletionAck(_) => TerminalLoopState::Failed(
                 InvokerError::UnexpectedMessageV4(MessageType::ProposeRunCompletionAck),
             ),
-            Message::Suspension(suspension) => self.handle_suspension_message(suspension),
+            Message::Suspension(suspension) => {
+                self.handle_suspension_message(suspension).map(|_| None)
+            }
             Message::AwaitingOn(awaiting_on) => self.handle_awaiting_on_message(awaiting_on),
-            Message::Error(e) => self.handle_error_message(e),
+            Message::Error(e) => self.handle_error_message(e).map(|_| None),
             Message::End(_) => TerminalLoopState::Closed,
 
             // Run completion proposal
@@ -1000,37 +1047,29 @@ where
                     )],
                 );
 
-                self.invocation_task.send_invoker_tx(
+                TerminalLoopState::Continue(Some(
                     InvocationTaskOutputInner::NewNotificationProposal {
                         notification: raw_notification,
                         requested_ack: mh
                             .requested_ack()
                             .expect("ProposeRunCompletion message supports requested_ack"),
                     },
-                );
-
-                TerminalLoopState::Continue(())
+                ))
             }
 
             // Commands
-            Message::OutputCommand(cmd) => {
-                self.handle_new_command(
-                    mh,
-                    RawCommand::new(CommandType::Output, cmd),
-                    attempt_span,
-                    None,
-                );
-                TerminalLoopState::Continue(())
-            }
-            Message::InputCommand(cmd) => {
-                self.handle_new_command(
-                    mh,
-                    RawCommand::new(CommandType::Input, cmd),
-                    attempt_span,
-                    None,
-                );
-                TerminalLoopState::Continue(())
-            }
+            Message::OutputCommand(cmd) => self.handle_new_command(
+                mh,
+                RawCommand::new(CommandType::Output, cmd),
+                attempt_span,
+                None,
+            ),
+            Message::InputCommand(cmd) => self.handle_new_command(
+                mh,
+                RawCommand::new(CommandType::Input, cmd),
+                attempt_span,
+                None,
+            ),
             Message::GetInvocationOutputCommand(cmd) => {
                 // The macro registers `GetInvocationOutput Command` as `noparse`, so `cmd` is
                 // the raw bytes from the wire. We decode a lite shadow type that only
@@ -1054,8 +1093,7 @@ where
                     RawCommand::new(CommandType::GetInvocationOutput, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::AttachInvocationCommand(cmd) => {
                 // See `Message::GetInvocationOutputCommand` above for why we decode-then-forward.
@@ -1077,21 +1115,18 @@ where
                     RawCommand::new(CommandType::AttachInvocation, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::RunCommand(cmd) => {
                 let raw = RawCommand::new(CommandType::Run, cmd);
                 let run_cmd: RunCommand = shortcircuit!(raw.decode::<ServiceProtocolV4Codec, _>());
-                self.handle_new_command(mh, raw, attempt_span, Some(run_cmd.name.to_string()));
-                TerminalLoopState::Continue(())
+                self.handle_new_command(mh, raw, attempt_span, Some(run_cmd.name.to_string()))
             }
             Message::SendSignalCommand(cmd) => {
                 // Verify the provided InvocationId is valid
                 let raw = RawCommand::new(CommandType::SendSignal, cmd);
                 let _: Entry = shortcircuit!(raw.decode::<ServiceProtocolV4Codec, _>());
-                self.handle_new_command(mh, raw, attempt_span, None);
-                TerminalLoopState::Continue(())
+                self.handle_new_command(mh, raw, attempt_span, None)
             }
             Message::OneWayCallCommand(cmd) => {
                 let name = cmd.name;
@@ -1132,8 +1167,7 @@ where
                         .expect("a raw command"),
                     attempt_span,
                     Some(name),
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::CallCommand(cmd) => {
                 let name = cmd.name;
@@ -1174,15 +1208,13 @@ where
                         .expect("a raw command"),
                     attempt_span,
                     Some(name),
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::SleepCommand(cmd) => {
                 let raw = RawCommand::new(CommandType::Sleep, cmd);
                 let sleep_cmd: SleepCommand =
                     shortcircuit!(raw.decode::<ServiceProtocolV4Codec, _>());
-                self.handle_new_command(mh, raw, attempt_span, Some(sleep_cmd.name.to_string()));
-                TerminalLoopState::Continue(())
+                self.handle_new_command(mh, raw, attempt_span, Some(sleep_cmd.name.to_string()))
             }
             Message::CompletePromiseCommand(cmd) => {
                 shortcircuit!(check_workflow_type(
@@ -1195,8 +1227,7 @@ where
                     RawCommand::new(CommandType::CompletePromise, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::PeekPromiseCommand(cmd) => {
                 shortcircuit!(check_workflow_type(
@@ -1209,8 +1240,7 @@ where
                     RawCommand::new(CommandType::PeekPromise, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::GetPromiseCommand(cmd) => {
                 shortcircuit!(check_workflow_type(
@@ -1223,8 +1253,7 @@ where
                     RawCommand::new(CommandType::GetPromise, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::GetEagerStateKeysCommand(cmd) => {
                 shortcircuit!(can_read_state(
@@ -1240,8 +1269,7 @@ where
                     RawCommand::new(CommandType::GetEagerStateKeys, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::GetEagerStateCommand(cmd) => {
                 shortcircuit!(can_read_state(
@@ -1257,8 +1285,7 @@ where
                     RawCommand::new(CommandType::GetEagerState, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::GetLazyStateKeysCommand(cmd) => {
                 shortcircuit!(can_read_state(
@@ -1274,8 +1301,7 @@ where
                     RawCommand::new(CommandType::GetLazyStateKeys, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::ClearAllStateCommand(cmd) => {
                 shortcircuit!(can_write_state(
@@ -1291,8 +1317,7 @@ where
                     RawCommand::new(CommandType::ClearAllState, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::ClearStateCommand(cmd) => {
                 shortcircuit!(can_write_state(
@@ -1308,8 +1333,7 @@ where
                     RawCommand::new(CommandType::ClearState, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::SetStateCommand(cmd) => {
                 shortcircuit!(can_write_state(
@@ -1325,8 +1349,7 @@ where
                     RawCommand::new(CommandType::SetState, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::GetLazyStateCommand(cmd) => {
                 shortcircuit!(can_read_state(
@@ -1342,15 +1365,13 @@ where
                     RawCommand::new(CommandType::GetLazyState, cmd),
                     attempt_span,
                     None,
-                );
-                TerminalLoopState::Continue(())
+                )
             }
             Message::CompleteAwakeableCommand(cmd) => {
                 // Verify the provided InvocationId is valid
                 let raw = RawCommand::new(CommandType::CompleteAwakeable, cmd);
                 let _: Entry = shortcircuit!(raw.decode::<ServiceProtocolV4Codec, _>());
-                self.handle_new_command(mh, raw, attempt_span, None);
-                TerminalLoopState::Continue(())
+                self.handle_new_command(mh, raw, attempt_span, None)
             }
             Message::SignalNotification(_) => TerminalLoopState::Failed(
                 InvokerError::UnexpectedMessageV4(MessageType::SignalNotification),
@@ -1407,7 +1428,7 @@ where
     fn handle_awaiting_on_message(
         &mut self,
         awaiting_on: proto::AwaitingOnMessage,
-    ) -> TerminalLoopState<()> {
+    ) -> TerminalLoopState<Option<InvocationTaskOutputInner>> {
         // this message should mark this invocation as suspendable.
         // if it's not running any side effects.
 
@@ -1420,12 +1441,12 @@ where
                 .try_into()
                 .map_err(|e| InvokerError::EncodingV2(GenericError::from(e).into()))
         );
-        self.invocation_task
-            .send_invoker_tx(InvocationTaskOutputInner::AwaitingOn { unresolved_future });
 
         // todo(azmy): Handle awaiting on message
         //  Also verify that we keep correctly updated the InvocationStatusReportInner.last_awaiting_on_unresolved_future field!
-        TerminalLoopState::Continue(())
+        TerminalLoopState::Continue(Some(InvocationTaskOutputInner::AwaitingOn {
+            unresolved_future,
+        }))
     }
 
     fn handle_suspension_message(

@@ -303,6 +303,20 @@ impl<T> TerminalLoopState<T> {
     fn is_suspend(&self) -> bool {
         matches!(self, Self::Suspended(_) | Self::SuspendedV2(_))
     }
+
+    /// Transform the payload carried by [`TerminalLoopState::Continue`], leaving the
+    /// terminal variants untouched.
+    fn map<U>(self, f: impl FnOnce(T) -> U) -> TerminalLoopState<U> {
+        match self {
+            Self::Continue(v) => TerminalLoopState::Continue(f(v)),
+            Self::Closed => TerminalLoopState::Closed,
+            Self::Suspended(v) => TerminalLoopState::Suspended(v),
+            Self::SuspendedV2(v) => TerminalLoopState::SuspendedV2(v),
+            Self::SuspendedV3(v) => TerminalLoopState::SuspendedV3(v),
+            Self::Failed(e) => TerminalLoopState::Failed(e),
+            Self::ShouldYield(oom) => TerminalLoopState::ShouldYield(oom),
+        }
+    }
 }
 
 impl<T, E: Into<InvokerError>> From<Result<T, E>> for TerminalLoopState<T> {
@@ -440,7 +454,7 @@ where
             }
         };
 
-        self.send_invoker_tx(inner);
+        self.send_invoker_tx(inner).await;
         histogram!(INVOKER_TASK_DURATION).record(start.elapsed());
     }
 
@@ -574,7 +588,8 @@ where
         self.send_invoker_tx(InvocationTaskOutputInner::PinnedDeployment(
             PinnedDeployment::new(deployment.id, chosen_service_protocol_version),
             deployment_changed,
-        ));
+        ))
+        .await;
 
         if chosen_service_protocol_version <= ServiceProtocolVersion::V3 {
             // Protocol runner for service protocol <= v3
@@ -612,17 +627,25 @@ where
 }
 
 impl<EE, Schemas> InvocationTask<EE, Schemas> {
+    /// Tag an output inner with this attempt's invocation id and fencing token.
+    ///
+    /// Used both by [`Self::send_invoker_tx`] and by the protocol runner when placing an
+    /// output through a reserved lane permit.
+    pub(crate) fn make_output(&self, inner: InvocationTaskOutputInner) -> InvocationTaskOutput {
+        InvocationTaskOutput {
+            invocation_id: self.invocation_id,
+            fencing_token: self.fencing_token,
+            inner,
+        }
+    }
+
     /// Send a non-terminal message to the invoker main loop.
     pub(crate) async fn send_invoker_tx(
         &self,
         invocation_task_output_inner: InvocationTaskOutputInner,
     ) {
         self.invoker_tx
-            .send(InvocationTaskOutput {
-                invocation_id: self.invocation_id,
-                fencing_token: self.fencing_token,
-                inner: invocation_task_output_inner,
-            })
+            .send(self.make_output(invocation_task_output_inner))
             .await;
     }
 }

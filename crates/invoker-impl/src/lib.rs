@@ -98,6 +98,12 @@ pub type InvocationOutputQueueHandle =
     FairLaneHandle<InvocationTaskOutput, InvocationId, RoundRobinScheduler>;
 pub type InvocationOutputQueueSender =
     LaneSender<InvocationTaskOutput, InvocationId, RoundRobinScheduler>;
+pub(crate) type InvocationOutputPermit<'a> = restate_futures_util::fair_lane_queue::Permit<
+    'a,
+    InvocationTaskOutput,
+    InvocationId,
+    RoundRobinScheduler,
+>;
 
 /// Tags an [`Effect`] with the fencing token of the attempt that produced it (`ism.fencing_token`).
 ///
@@ -2449,17 +2455,24 @@ mod tests {
              _storage_reader,
              invoker_tx: InvocationOutputQueueSender,
              _| {
-                let _ = invoker_tx.send(InvocationTaskOutput {
-                    invocation_id,
-                    fencing_token: 0,
-                    inner: InvocationTaskOutputInner::NewEntry {
-                        entry_index: 1,
-                        entry: RawEntry::new(EnrichedEntryHeader::SetState {}, Bytes::default())
-                            .into(),
-                        requires_ack: false,
-                    },
-                });
-                pending() // Never ends
+                async move {
+                    invoker_tx
+                        .send(InvocationTaskOutput {
+                            invocation_id,
+                            fencing_token: 0,
+                            inner: InvocationTaskOutputInner::NewEntry {
+                                entry_index: 1,
+                                entry: RawEntry::new(
+                                    EnrichedEntryHeader::SetState {},
+                                    Bytes::default(),
+                                )
+                                .into(),
+                                requires_ack: false,
+                            },
+                        })
+                        .await;
+                    pending::<()>().await // Never ends
+                }
             },
             MockSchemas(
                 // fixed amount of retries so that an invocation eventually completes with a failure
